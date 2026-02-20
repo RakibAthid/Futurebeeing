@@ -1,0 +1,13 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {"name": "Canal", "type": "water"},
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [[6.8568,52.2319],[6.8586,52.2312],[6.8604,52.2307],[6.8622,52.2302],[6.8640,52.2296]]
+      }
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="400" viewBox="0 0 640 400">
+<rect width="640" height="400" fill="#f5f5f5"/>
+<polygon points="170,300 230,140 290,300" fill="#80b1d3"/>
+<rect x="320" y="160" width="140" height="140" fill="#fb8072" rx="12"/>
+<circle cx="390" cy="230" r="40" fill="#fdb462"/>
+<text x="30" y="50" font-family="Arial, Helvetica, sans-serif" font-size="28" fill="#222">Play Element</text>
+</svg>

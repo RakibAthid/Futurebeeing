@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="400" viewBox="0 0 640 400">
+<rect width="640" height="400" fill="#f5f5f5"/>
+<path d="M50 250c60-40 120-40 180 0s120 40 180 0 120-40 180 0" fill="none" stroke="#4aa3df" stroke-width="18" stroke-linecap="round"/>
+<path d="M50 300c60-40 120-40 180 0s120 40 180 0 120-40 180 0" fill="none" stroke="#4aa3df" stroke-width="18" stroke-linecap="round"/>
+<text x="30" y="50" font-family="Arial, Helvetica, sans-serif" font-size="28" fill="#222">Water / Cooling</text>
+</svg>
