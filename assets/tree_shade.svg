@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="400" viewBox="0 0 640 400">
+<rect width="640" height="400" fill="#f5f5f5"/>
+<circle cx="220" cy="170" r="90" fill="#7fc97f"/>
+<rect x="205" y="230" width="30" height="110" fill="#8c510a"/>
+<path d="M320 260c60-120 180-120 240 0" fill="none" stroke="#555" stroke-width="16" stroke-linecap="round"/>
+<text x="30" y="50" font-family="Arial, Helvetica, sans-serif" font-size="28" fill="#222">Shade / Trees</text>
+</svg>
