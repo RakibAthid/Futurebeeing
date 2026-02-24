@@ -1,0 +1,2520 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <!--
+    This site has been prepared for deployment on Cloudflare Pages.
+    If you would like to persist user‑generated POI data in Cloudflare
+    R2 object storage, provide a publicly accessible JSON file URL in
+    the R2_JSON_URL constant defined in the script below.  When set,
+    the app will load and save data to that URL using HTTP GET and
+    PUT requests.  See Cloudflare's tutorial on using R2 as static
+    asset storage with Pages for more information【527488307763416†L299-L352】.
+  -->
+  <!-- Updated title reflecting a simpler, cleaner interface -->
+  <title>Community POIs & Photos (Twekkelerveld)</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+  <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+
+  <!-- jsPDF library for PDF export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha512-HoGy4MzZY1o5LZiN5N4dAJE1lghYzBL2cJlgKi/lLXKfxPTBlI+Y597TWwFQP4KTSHS1Iz4kh06Vc36RlWCEcg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+  <style>
+    :root{
+      --bg-core:#020617;
+      --bg-card:#0f172a;
+      --bg-card2:#0b1224;
+      --text-main:#f8fafc;
+      --text-muted:#94a3b8;
+      --accent:#38bdf8;
+      --accent2:#a78bfa;
+      --border: rgba(148, 163, 184, 0.18);
+      --shadow: 0 14px 40px rgba(0,0,0,.35);
+      --radius: 16px;
+    }
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; margin:0; font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; background: radial-gradient(circle at top, #1e293b 0, #020617 60%); color:var(--text-main); }
+    a{ color:var(--accent); text-decoration:none; }
+    a:hover{ text-decoration:underline; }
+
+    .app{
+      height:100%;
+      display:grid;
+      grid-template-columns: 340px 1fr 420px;
+      gap: 12px;
+      padding: 12px;
+    }
+    .panel{
+      background: linear-gradient(180deg, rgba(15,23,42,.9), rgba(2,6,23,.9));
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      display:flex;
+      flex-direction:column;
+      min-height:0;
+    }
+    .panelHeader{
+      padding: 14px 14px 10px 14px;
+      border-bottom: 1px solid var(--border);
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap: 10px;
+    }
+    .title{
+      display:flex;
+      flex-direction:column;
+      gap: 4px;
+    }
+    .title h1{
+      font-size: 14px;
+      letter-spacing:.2px;
+      margin:0;
+      font-weight:700;
+    }
+    .subtitle{
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height:1.2;
+    }
+    .headerActions{
+      display:flex;
+      gap: 8px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+    .btn{
+      background: rgba(56,189,248,.14);
+      border: 1px solid rgba(56,189,248,.25);
+      color: var(--text-main);
+      padding: 8px 10px;
+      border-radius: 12px;
+      cursor:pointer;
+      font-size: 12px;
+      font-weight:600;
+      transition: transform .05s ease, background .15s ease;
+      user-select:none;
+    }
+    .btn:hover{ background: rgba(56,189,248,.20); }
+    .btn:active{ transform: translateY(1px); }
+    .btn.secondary{
+      background: rgba(148,163,184,.10);
+      border-color: rgba(148,163,184,.18);
+    }
+    .btn.danger{
+      background: rgba(239,68,68,.14);
+      border-color: rgba(239,68,68,.25);
+    }
+    .btn.primary{
+      background: rgba(56,189,248,.18);
+      border-color: rgba(56,189,248,.35);
+    }
+    .btn.small{ padding: 7px 9px; border-radius: 10px; font-weight:700; }
+    .btn.ghost{
+      background: transparent;
+      border-color: rgba(148,163,184,.18);
+    }
+
+    .body{
+      padding: 12px 14px 14px 14px;
+      overflow:auto;
+      min-height:0;
+    }
+    .section{ margin-bottom: 14px; }
+    .sectionTitle{
+      font-size: 12px;
+      color: var(--text-muted);
+      margin: 0 0 8px 0;
+      font-weight: 700;
+      letter-spacing:.2px;
+      text-transform: uppercase;
+    }
+
+    .row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .input, .textarea, .select{
+      width: 100%;
+      background: rgba(2,6,23,.55);
+      border: 1px solid rgba(148,163,184,.20);
+      color: var(--text-main);
+      border-radius: 12px;
+      padding: 10px 10px;
+      font-size: 13px;
+      outline:none;
+    }
+    .textarea{ min-height: 84px; resize: vertical; }
+    .input::placeholder, .textarea::placeholder{ color: rgba(148,163,184,.65); }
+
+    .chips{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .chip{
+      padding: 8px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(148,163,184,.20);
+      background: rgba(148,163,184,.07);
+      color: var(--text-main);
+      font-size: 12px;
+      font-weight: 600;
+      cursor:pointer;
+      user-select:none;
+    }
+    .chip.active{
+      border-color: rgba(56,189,248,.35);
+      background: rgba(56,189,248,.14);
+    }
+
+    .toggles{
+      display:flex;
+      gap: 10px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    .toggle{
+      display:flex;
+      align-items:center;
+      gap: 8px;
+      color: var(--text-muted);
+      font-size: 12px;
+      user-select:none;
+    }
+    .toggle input{ width: 16px; height:16px; accent-color: var(--accent); }
+
+    .list{
+      display:flex;
+      flex-direction:column;
+      gap: 10px;
+    }
+    .card{
+      background: rgba(15,23,42,.7);
+      border: 1px solid rgba(148,163,184,.18);
+      border-radius: 14px;
+      padding: 10px 10px;
+      display:flex;
+      gap: 10px;
+      cursor:pointer;
+    }
+    .badge{
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(148,163,184,.20);
+      color: var(--text-muted);
+      width: fit-content;
+    }
+    .badge.workshop{ border-color: rgba(56,189,248,.30); color: rgba(56,189,248,.95); }
+    .badge.osm{ border-color: rgba(167,139,250,.35); color: rgba(167,139,250,.95); }
+    .badge.urgentLow{ border-color: rgba(148,163,184,.30); color: rgba(148,163,184,.95); }
+    .badge.urgentMed{ border-color: rgba(251,191,36,.35); color: rgba(251,191,36,.95); }
+    .badge.urgentHigh{ border-color: rgba(239,68,68,.35); color: rgba(239,68,68,.95); }
+
+    .cardMain{ flex:1; min-width:0; }
+    .cardTitle{ font-weight: 800; font-size: 13px; margin:0 0 4px 0; }
+    .cardMeta{ font-size: 12px; color: var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .rightHint{
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height:1.35;
+      padding: 14px;
+    }
+
+    #map{
+      width:100%;
+      height:100%;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+
+    .pillRow{ display:flex; gap:8px; flex-wrap:wrap; margin-top:6px; }
+    .pill{
+      font-size: 11px;
+      padding: 6px 8px;
+      border-radius: 999px;
+      background: rgba(2,6,23,.55);
+      border: 1px solid rgba(148,163,184,.18);
+      color: var(--text-main);
+    }
+
+    .kv{
+      display:grid;
+      grid-template-columns: 120px 1fr;
+      gap: 8px 10px;
+      align-items:start;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .kv b{ color: var(--text-main); font-weight: 700; }
+    .mono{ font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace; }
+
+    .photosGrid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .photoBox{
+      background: rgba(2,6,23,.55);
+      border: 1px solid rgba(148,163,184,.18);
+      border-radius: 14px;
+      padding: 10px;
+      overflow:hidden;
+      min-height: 170px;
+      display:flex;
+      flex-direction:column;
+      gap: 8px;
+    }
+    .photoBox h3{
+      margin:0;
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing:.2px;
+    }
+    .imgWrap{
+      width:100%;
+      height: 120px;
+      border-radius: 12px;
+      border: 1px solid rgba(148,163,184,.14);
+      overflow:hidden;
+      background: rgba(15,23,42,.55);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color: rgba(148,163,184,.7);
+      font-size: 12px;
+    }
+    .imgWrap img{ width:100%; height:100%; object-fit:cover; display:block; }
+    .imgActions{ display:flex; gap:8px; flex-wrap:wrap; }
+
+    .gallery{
+      display:grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+    .thumb{
+      height: 78px;
+      border-radius: 12px;
+      overflow:hidden;
+      border: 1px solid rgba(148,163,184,.18);
+      background: rgba(15,23,42,.6);
+      cursor:pointer;
+      position:relative;
+    }
+    .thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+    .thumb span{
+      position:absolute;
+      left:6px; bottom:6px;
+      font-size: 10px;
+      padding: 3px 6px;
+      border-radius: 999px;
+      background: rgba(2,6,23,.72);
+      border: 1px solid rgba(148,163,184,.18);
+      color: var(--text-main);
+      max-width: calc(100% - 12px);
+      overflow:hidden;
+      white-space:nowrap;
+      text-overflow:ellipsis;
+    }
+
+    .notice{
+      margin: 10px 14px 0 14px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: rgba(251,191,36,.10);
+      border: 1px solid rgba(251,191,36,.18);
+      color: rgba(251,191,36,.95);
+      font-size: 12px;
+      display:none;
+    }
+    .notice.show{ display:block; }
+
+    /* Compare strip at the bottom for pinned POIs */
+    #compareStrip{
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(2,6,23,.92);
+      border-top: 1px solid var(--border);
+      padding: 8px;
+      display: none;
+      z-index: 10000;
+      overflow-x: auto;
+    }
+    #compareStrip .compareItem{
+      min-width: 180px;
+      background: rgba(15,23,42,.7);
+      border: 1px solid rgba(148,163,184,.18);
+      border-radius: 12px;
+      margin-right: 8px;
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    #compareStrip .compareItem h4{
+      margin: 0;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    #compareStrip .compareItem .meta{
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+    #compareStrip .compareItem img{
+      width: 100%;
+      height: 60px;
+      border-radius: 8px;
+      object-fit: cover;
+      border: 1px solid rgba(148,163,184,.14);
+    }
+    #compareStrip .compareItem .close{
+      align-self: flex-end;
+      cursor: pointer;
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+
+    /* Analysis flow illustrating the recommended workflow for refining POIs. Each
+       step is presented as a card with an icon and a short caption. */
+    .analysisFlow{
+      display:grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .analysisStep{
+      background: rgba(2,6,23,.55);
+      border: 1px solid rgba(148,163,184,.18);
+      border-radius: 12px;
+      padding: 10px 8px;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      min-height: 80px;
+    }
+    .analysisStep .icon{
+      font-size: 20px;
+      margin-bottom: 4px;
+    }
+    .analysisStep strong{
+      font-size: 11px;
+      font-weight: 800;
+      margin-bottom: 2px;
+    }
+    .analysisStep small{
+      font-size: 10px;
+      color: var(--text-muted);
+      line-height: 1.2;
+    }
+
+    @media (max-width: 1200px){
+      .app{ grid-template-columns: 1fr; grid-template-rows: auto 60vh auto; }
+      #map{ height: 60vh; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <!-- LEFT -->
+    <aside class="panel" id="leftPanel">
+      <div class="panelHeader">
+        <div class="title">
+          <!-- Simplified headline; removed the unprofessional tagline -->
+          <h1>Community POIs & Photos</h1>
+          <div class="subtitle">Study area: Twekkelerveld (Enschede)</div>
+        </div>
+        <div class="headerActions">
+          <button class="btn small secondary" id="btnGoStudy">Go to area</button>
+          <!-- Download report button added -->
+          <button class="btn small secondary" id="btnExportPDF">Download report</button>
+          <button class="btn small" id="btnAddPOI">Add POI</button>
+        </div>
+      </div>
+
+      <div class="notice" id="noticeProtocol">
+        Commons requests may be blocked when opening this file directly. Please run via a local server (e.g., <span class="mono">http://localhost</span>).
+      </div>
+
+      <div class="body">
+        <div class="section">
+          <div class="sectionTitle">Find</div>
+          <input class="input" id="q" placeholder="Search in POIs (name / tags / comment)" />
+        </div>
+
+        <div class="section">
+          <div class="sectionTitle">Categories</div>
+          <div class="chips" id="categoryChips"></div>
+        </div>
+
+        <div class="section">
+          <div class="sectionTitle">Layers</div>
+          <div class="toggles">
+            <label class="toggle"><input type="checkbox" id="togStudy" checked> Study boundary</label>
+            <label class="toggle"><input type="checkbox" id="togPOI" checked> POIs</label>
+          </div>
+        </div>
+
+        <!-- Data export/import controls removed for simplicity -->
+
+        <div class="section">
+          <div class="sectionTitle">Places & workshop notes</div>
+          <div class="list" id="list"></div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAP -->
+    <main id="map"></main>
+
+    <!-- RIGHT -->
+    <aside class="panel" id="rightPanel">
+      <div class="panelHeader">
+        <div class="title">
+          <h1 id="selTitle">Select a POI or place</h1>
+          <div class="subtitle" id="selSub">Click a marker on the map or an item in the list.</div>
+        </div>
+        <div class="headerActions">
+          <button class="btn small ghost" id="btnZoom" disabled>Zoom</button>
+          <button class="btn small secondary" id="btnOpenMaps" disabled>Maps</button>
+          <button class="btn small secondary" id="btnOpenStreet" disabled>Street View</button>
+        </div>
+      </div>
+
+      <div class="body" id="rightBody">
+        <div class="rightHint">
+          Use <b>Add POI</b> to capture a need, problem or idea. Add tags, urgency, photos and feedback. The map and list on the left help you explore your contributions.
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Compare strip: displays pinned POIs side by side. Hidden by default. -->
+  <div id="compareStrip"></div>
+
+<script>
+(() => {
+  // Provide the URL of a JSON file stored in Cloudflare R2 to enable
+  // remote persistence of POI data.  Leave this empty to use
+  // localStorage only.  Example:
+  // const R2_JSON_URL = "https://my-bucket.r2.dev/pois.json";
+  const R2_JSON_URL = "";
+  const STORE_KEY = "DT_SOCIAL_POIS_V1";
+  const LAST_ENDPOINT_KEY = "DT_SOCIAL_OVERPASS_ENDPOINT";
+  const COMMONS_API = "https://commons.wikimedia.org/w/api.php?origin=*";
+
+  // Determine whether the page is in admin mode. Certain advanced
+  // functionality (e.g. loading OSM data, exporting/importing GeoJSON) is
+  // reserved for administrators and hidden from normal users. To enter
+  // admin mode append `?admin=1` to the URL.
+  const urlParams = new URLSearchParams(location.search);
+  const isAdmin = urlParams.get("admin") === "1";
+
+  const CONFIG = {
+    studyArea: {
+      name: "Twekkelerveld",
+      center: [52.23064, 6.86004],
+      bounds: [[52.2245, 6.8505],[52.2370, 6.8725]]
+    },
+    overpassEndpoints: [
+      "https://overpass-api.de/api/interpreter",
+      "https://z.overpass-api.de/api/interpreter",
+      "https://lz4.overpass-api.de/api/interpreter",
+      "https://overpass.kumi.systems/api/interpreter"
+    ],
+    minZoomForOverpass: 14
+  };
+
+  const CATEGORY_PRESETS = [
+    { id:"meeting", label:"Meeting / community", osm: [
+      ["amenity","community_centre"],
+      ["amenity","social_facility"],
+      ["amenity","library"]
+    ]},
+    { id:"play", label:"Playground / youth", osm: [
+      ["leisure","playground"],
+      ["amenity","kindergarten"],
+      ["amenity","school"]
+    ]},
+    { id:"benches", label:"Benches / stay", osm: [
+      ["amenity","bench"],
+      ["amenity","shelter"],
+      ["tourism","picnic_site"]
+    ]},
+    { id:"sports", label:"Sports / activity", osm: [
+      ["leisure","pitch"],
+      ["leisure","sports_centre"],
+      ["leisure","fitness_station"]
+    ]},
+    { id:"walk", label:"Walkability / access", osm: [
+      ["highway","crossing"],
+      ["traffic_calming","*"]
+    ]},
+    { id:"parking", label:"Parking / multi-use", osm: [
+      ["amenity","parking"],
+      ["amenity","bicycle_parking"]
+    ]},
+    { id:"safety", label:"Safety / lighting", osm: [
+      ["highway","street_lamp"]
+    ]}
+  ];
+
+  const POI_TYPES = [
+    { id:"need", label:"Need" },
+    { id:"problem", label:"Problem" },
+    { id:"idea", label:"Idea" },
+    { id:"existing", label:"Existing (improve)" }
+  ];
+
+  const URGENCY = [
+    { id:"low", label:"Low" },
+    { id:"med", label:"Medium" },
+    { id:"high", label:"High" }
+  ];
+
+  // Lifecycle status options for the feedback loop. These mirror the stages
+  // discussed in the workshop: items start as “captured”, may be
+  // “shortlisted” for consideration, promoted to the masterplan, and finally
+  // marked as implemented. A friendly label accompanies each internal id.
+  const STATUS_OPTIONS = [
+    { id: "captured", label: "Captured" },
+    { id: "shortlisted", label: "Shortlisted" },
+    { id: "in_masterplan", label: "In masterplan" },
+    { id: "implemented", label: "Implemented" }
+  ];
+
+  // Minimal “solution templates” (image options fetched from Wikimedia Commons search)
+  // Solution templates map a short identifier to a friendly label and an optional local image.
+  // The "query" field is left for future remote lookups but the UI will prioritise the
+  // "img" property if provided. Images are stored alongside this HTML file in the same
+  // directory so they can load reliably without network access. Feel free to replace
+  // these image paths with your own assets.
+  const SOLUTION_TEMPLATES = [
+    { id:"pocket-park", label:"Pocket park / small green", img: "pocket_park.png", query:"pocket park public space" },
+    { id:"playground-upgrade", label:"Playground upgrade", img: "playground_upgrade.png", query:"playground renovation public space" },
+    { id:"community-garden", label:"Community garden", img: "community_garden.png", query:"community garden urban" },
+    { id:"bench-shade", label:"Benches + shade", img: "pocket_park.png", query:"public bench shade trees" },
+    { id:"lighting-safety", label:"Lighting + safe crossing", img: "lighting_safety.png", query:"street lighting safe crossing" },
+    { id:"shared-space", label:"Shared space / multi-use", img: "shared_space.png", query:"shared space street design" },
+    { id:"permeable-parking", label:"Permeable parking + green", img: "permeable_parking.png", query:"permeable paving parking green" }
+  ];
+
+  const el = (id) => document.getElementById(id);
+  const noticeProtocol = el("noticeProtocol");
+
+  if (location.protocol === "file:") noticeProtocol.classList.add("show");
+
+  // Map
+  const map = L.map("map", { zoomControl: true });
+  const osmTiles = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+
+  map.fitBounds(CONFIG.studyArea.bounds);
+
+  // Geocoder (search bar)
+  L.Control.geocoder({
+    defaultMarkGeocode: false,
+    placeholder: "Search address/place…"
+  }).on('markgeocode', function(e) {
+    map.fitBounds(e.geocode.bbox);
+  }).addTo(map);
+
+  // Study boundary
+  let studyLayer = null;
+  async function loadStudyBoundary(){
+    const candidates = [
+      // Prefer a complete study area boundary derived from the GeoPackage.  If
+      // you convert your Twekkelerveld_utm32.gpkg to GeoJSON and place it in
+      // the data folder, the following two entries will match it.  Fallback
+      // options retain support for legacy file names.
+      "data/Twekkelerveld_utm32.geojson",
+      "Twekkelerveld_utm32.geojson",
+      "data/study_area.geojson",
+      "data/twekkelerveld_study_area.geojson",
+      "twekkelerveld_study_area.geojson"
+    ];
+    for (const url of candidates){
+      try{
+        const r = await fetch(url, { cache: "no-store" });
+        if(!r.ok) continue;
+        const gj = await r.json();
+        studyLayer = L.geoJSON(gj, {
+          style: { color: "#38bdf8", weight: 2, dashArray: "6 6", fillOpacity: 0.06 }
+        }).addTo(map);
+        map.fitBounds(studyLayer.getBounds(), { padding:[10,10] });
+        return;
+      }catch(_e){}
+    }
+    studyLayer = L.rectangle(CONFIG.studyArea.bounds, {
+      color: "#38bdf8",
+      weight: 2,
+      dashArray: "6 6",
+      fillOpacity: 0.06
+    }).addTo(map);
+    map.fitBounds(CONFIG.studyArea.bounds, { padding:[10,10] });
+  }
+  loadStudyBoundary();
+
+// Marker clusters
+  const clusterOSM = L.markerClusterGroup({ showCoverageOnHover: false, disableClusteringAtZoom: 18 });
+  const clusterPOI = L.markerClusterGroup({ showCoverageOnHover: false, disableClusteringAtZoom: 18 });
+  const clusterPhotos = L.markerClusterGroup({ showCoverageOnHover: false, disableClusteringAtZoom: 18 });
+
+  map.addLayer(clusterOSM);
+  map.addLayer(clusterPOI);
+  map.addLayer(clusterPhotos);
+
+  // State
+  let selectedCategories = new Set(["meeting","play","benches","sports","parking"]);
+  let addMode = false;
+  let selected = null; // {kind:'poi'|'osm', id, latlng, data}
+  let pois = loadPOIs();
+  // If an R2_JSON_URL is specified, fetch the POI array from that remote JSON
+  // after the page loads.  This fetch runs asynchronously and overwrites the
+  // locally loaded POIs.  The UI is then refreshed to display the
+  // remotely loaded data.  Errors are logged to the console and the app
+  // continues using localStorage if the request fails.
+  if (typeof R2_JSON_URL === 'string' && R2_JSON_URL) {
+    fetch(R2_JSON_URL)
+      .then(r => {
+        if (!r.ok) throw new Error('Remote data request failed');
+        return r.json();
+      })
+      .then(json => {
+        if (Array.isArray(json)) {
+          pois = json;
+          refreshPOIMarkers();
+          renderList();
+        }
+      })
+      .catch(err => {
+        console.error('Failed to load remote POIs', err);
+      });
+  }
+  let osmPlaces = []; // normalized objects
+  let photoMarkers = []; // {marker, url, title}
+
+  // Pinned POIs for comparison. Users can pin up to four POIs for a
+  // side‑by‑side overview. The compare strip at the bottom of the page
+  // reflects the contents of this array.
+  let pinned = [];
+
+  // UI: chips
+  const chipsWrap = el("categoryChips");
+  CATEGORY_PRESETS.forEach(c => {
+    const d = document.createElement("div");
+    d.className = selectedCategories.has(c.id) ? "chip active" : "chip";
+    d.textContent = c.label;
+    d.onclick = () => {
+      if (selectedCategories.has(c.id)) { selectedCategories.delete(c.id); d.classList.remove("active"); }
+      else { selectedCategories.add(c.id); d.classList.add("active"); }
+      renderList();
+    };
+    chipsWrap.appendChild(d);
+  });
+
+  // Layer toggles
+  // Layer toggles (only study boundary and POIs remain)
+  const togStudyEl = el("togStudy");
+  if(togStudyEl){ togStudyEl.addEventListener("change", (e)=> {
+    if(!studyLayer) return; if(e.target.checked) map.addLayer(studyLayer); else map.removeLayer(studyLayer);
+  }); }
+  const togPOIEl = el("togPOI");
+  if(togPOIEl){ togPOIEl.addEventListener("change", (e)=> {
+    if(e.target.checked) map.addLayer(clusterPOI); else map.removeLayer(clusterPOI);
+  }); }
+
+  // Buttons
+  const btnGoStudy = el("btnGoStudy");
+  if(btnGoStudy){ btnGoStudy.onclick = () => { if(studyLayer) map.fitBounds(studyLayer.getBounds(), {padding:[10,10]}); else map.fitBounds(CONFIG.studyArea.bounds); }; }
+
+  const btnAddPOI = el("btnAddPOI");
+  if(btnAddPOI){ btnAddPOI.onclick = () => setAddMode(!addMode); }
+
+  // Removed OSM/data buttons; wrap in checks to avoid errors
+  const btnLoadOSM = el("btnLoadOSM");
+  if(btnLoadOSM){
+    if(!isAdmin){ btnLoadOSM.style.display = 'none'; }
+    else{ btnLoadOSM.onclick = () => loadOSMForView(); }
+  }
+  const btnExport = el("btnExport");
+  if(btnExport){
+    if(!isAdmin){ btnExport.style.display = 'none'; }
+    else{ btnExport.onclick = () => exportGeoJSON(); }
+  }
+  const btnImport = el("btnImport");
+  if(btnImport){
+    if(!isAdmin){ btnImport.style.display = 'none'; }
+    else{ btnImport.onclick = () => el("fileImport").click(); }
+  }
+  const fileImport = el("fileImport");
+  if(fileImport){ fileImport.addEventListener("change", handleImportFile); }
+  const btnClear = el("btnClear");
+  if(btnClear){
+    if(!isAdmin){ btnClear.style.display = 'none'; }
+    else{
+      btnClear.onclick = () => {
+        if (!confirm("Clear all workshop POIs saved in this browser?")) return;
+        pois = [];
+        savePOIs();
+        selected = null;
+        clusterPOI.clearLayers();
+        renderList();
+        renderRight(null);
+      };
+    }
+  }
+
+  el("q").addEventListener("input", () => renderList());
+
+  el("btnZoom").onclick = () => { if(selected?.latlng) map.setView(selected.latlng, 18); };
+  el("btnOpenMaps").onclick = () => { if(selected?.latlng) openGoogleMaps(selected.latlng); };
+  el("btnOpenStreet").onclick = () => { if(selected?.latlng) openStreetView(selected.latlng); };
+
+  // Add mode
+  function setAddMode(on){
+    addMode = on;
+    el("btnAddPOI").textContent = on ? "Click map…" : "Add POI";
+    el("btnAddPOI").classList.toggle("primary", on);
+    map.getContainer().style.cursor = on ? "crosshair" : "";
+  }
+
+  map.on("click", async (e) => {
+    if(!addMode) return;
+    const p = createPOI(e.latlng);
+    pois.unshift(p);
+    // Auto populate images (before & after)
+    try{ await autoPopulateImagesForPOI(p); }catch(_err){}
+    savePOIs();
+    setAddMode(false);
+    refreshPOIMarkers();
+    renderList();
+    selectPOI(p.id);
+  });
+
+  // Icons
+  function markerIcon(kind, urgency){
+    const color = kind === "osm" ? "#a78bfa" : (urgency === "high" ? "#ef4444" : urgency === "med" ? "#fbbf24" : "#38bdf8");
+    const html = `
+      <div style="
+        width:26px;height:26px;border-radius:10px;
+        background: rgba(2,6,23,.85);
+        border: 2px solid ${color};
+        box-shadow: 0 10px 22px rgba(0,0,0,.35);
+        display:flex;align-items:center;justify-content:center;
+      ">
+        <div style="width:8px;height:8px;border-radius:999px;background:${color};"></div>
+      </div>`;
+    return L.divIcon({ html, className:"", iconSize:[26,26], iconAnchor:[13,13] });
+  }
+
+  // POIs
+  function createPOI(latlng){
+    return {
+      id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2),
+      kind: "workshop",
+      type: "idea",
+      title: "New POI",
+      category: "meeting",
+      tags: [],
+      comment: "",
+      urgency: "low",
+      timeUse: { weekday:true, weekend:false, day:true, evening:false },
+      before: { mode:"none", data:null },
+      after: { mode:"template", data: "pocket-park" },
+      osmTags: {},
+      lat: +latlng.lat.toFixed(6),
+      lon: +latlng.lng.toFixed(6),
+      createdAt: new Date().toISOString(),
+      // Feedback loop fields
+      status: "captured",
+      feedbackScore: null,
+      feedbackComment: "",
+      workshopDate: ""
+    };
+  }
+
+  function loadPOIs(){
+    try{
+      const raw = localStorage.getItem(STORE_KEY);
+      if(!raw) return [];
+      const arr = JSON.parse(raw);
+      if(!Array.isArray(arr)) return [];
+      // Ensure newly added feedback fields exist on older POIs
+      return arr.map(p => {
+        if(p && typeof p === 'object'){
+          if(!p.status) p.status = 'captured';
+          if(p.feedbackScore === undefined) p.feedbackScore = null;
+          if(p.feedbackComment === undefined) p.feedbackComment = '';
+          if(p.workshopDate === undefined) p.workshopDate = '';
+        }
+        return p;
+      });
+    }catch{ return []; }
+  }
+  function savePOIs(){
+    // Persist to localStorage regardless of R2 usage
+    localStorage.setItem(STORE_KEY, JSON.stringify(pois));
+    // If a remote R2 JSON file has been configured, attempt to PUT the
+    // updated POI array back to that endpoint.  This allows persisted
+    // storage outside the browser.  Note that R2 buckets must be
+    // configured to accept public PUT operations or the URL must be a
+    // pre‑signed URL with appropriate permissions.  Errors are
+    // intentionally ignored to avoid blocking the UI.
+    if (typeof R2_JSON_URL === 'string' && R2_JSON_URL) {
+      fetch(R2_JSON_URL, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(pois)
+      }).catch(() => {});
+    }
+  }
+
+  // Render markers
+  function refreshPOIMarkers(){
+    clusterPOI.clearLayers();
+    for(const p of pois){
+      const m = L.marker([p.lat, p.lon], { icon: markerIcon("poi", p.urgency) });
+      m.on("click", () => selectPOI(p.id));
+      clusterPOI.addLayer(m);
+    }
+  }
+  function refreshOSMMarkers(){
+    clusterOSM.clearLayers();
+    for(const f of osmPlaces){
+      const m = L.marker([f.lat, f.lon], { icon: markerIcon("osm") });
+      m.on("click", () => selectOSM(f.id));
+      clusterOSM.addLayer(m);
+    }
+  }
+
+  // List rendering
+  function renderList(){
+    const list = el("list");
+    list.innerHTML = "";
+
+    const query = (el("q").value || "").trim().toLowerCase();
+
+    const workshopItems = pois
+      .filter(p => selectedCategories.has(p.category))
+      .filter(p => matchesQuery(p, query))
+      .map(p => ({ kind:"poi", id:p.id, title:p.title, meta: `${labelOf("category", p.category)} · ${p.lat.toFixed(4)}, ${p.lon.toFixed(4)}`, urgency:p.urgency }));
+
+    const osmItems = osmPlaces
+      .filter(o => selectedCategories.has(o.category))
+      .filter(o => matchesQuery(o, query))
+      .map(o => ({ kind:"osm", id:o.id, title:o.title, meta: `${labelOf("category", o.category)} · ${o.lat.toFixed(4)}, ${o.lon.toFixed(4)}` }));
+
+    const all = [...workshopItems, ...osmItems].slice(0, 250);
+
+    if(all.length === 0){
+      const empty = document.createElement("div");
+      empty.className = "rightHint";
+      empty.textContent = "No items for the current filters. Try enabling more categories or adding POIs.";
+      list.appendChild(empty);
+      return;
+    }
+
+    for(const it of all){
+      const card = document.createElement("div");
+      card.className = "card";
+      card.onclick = () => it.kind === "poi" ? selectPOI(it.id) : selectOSM(it.id);
+
+      const main = document.createElement("div");
+      main.className = "cardMain";
+
+      const h = document.createElement("div");
+      h.className = "cardTitle";
+      h.textContent = it.title;
+
+      const meta = document.createElement("div");
+      meta.className = "cardMeta";
+      meta.textContent = it.meta;
+
+      const badges = document.createElement("div");
+      badges.className = "pillRow";
+
+      const b1 = document.createElement("div");
+      b1.className = "badge " + (it.kind === "poi" ? "workshop" : "osm");
+      b1.textContent = it.kind === "poi" ? "Workshop" : "OSM";
+      badges.appendChild(b1);
+
+      if(it.kind === "poi"){
+        const u = document.createElement("div");
+        u.className = "badge " + (it.urgency === "high" ? "urgentHigh" : it.urgency === "med" ? "urgentMed" : "urgentLow");
+        u.textContent = "Urgency: " + labelOf("urgency", it.urgency);
+        badges.appendChild(u);
+      }
+
+      main.appendChild(h);
+      main.appendChild(meta);
+      main.appendChild(badges);
+
+      card.appendChild(main);
+      // If this is a workshop POI, include a small pin/unpin button for
+      // comparison. The button does not trigger selection of the card itself.
+      if(it.kind === 'poi'){
+        const pinBtn = document.createElement('button');
+        pinBtn.className = 'btn small secondary';
+        pinBtn.style.marginLeft = 'auto';
+        pinBtn.textContent = pinned.includes(it.id) ? 'Unpin' : 'Pin';
+        pinBtn.onclick = (e) => {
+          e.stopPropagation();
+          togglePin(it.kind, it.id);
+        };
+        card.appendChild(pinBtn);
+      }
+      list.appendChild(card);
+    }
+
+    // Update compare strip display in case the pinned list changed or the
+    // number of visible items impacts its content. This call is safe even
+    // when no items are pinned.
+    renderCompareStrip();
+  }
+
+  function matchesQuery(obj, q){
+    if(!q) return true;
+    const text = [
+      obj.title,
+      obj.comment,
+      ...(obj.tags || []),
+      obj.category,
+      JSON.stringify(obj.osmTags || {})
+    ].join(" ").toLowerCase();
+    return text.includes(q);
+  }
+
+  function labelOf(kind, id){
+    if(kind === "category") return (CATEGORY_PRESETS.find(x=>x.id===id)?.label) || id;
+    if(kind === "urgency") return (URGENCY.find(x=>x.id===id)?.label) || id;
+    if(kind === "type") return (POI_TYPES.find(x=>x.id===id)?.label) || id;
+    if(kind === "template") return (SOLUTION_TEMPLATES.find(x=>x.id===id)?.label) || id;
+    if(kind === "status") return (STATUS_OPTIONS.find(x=>x.id===id)?.label) || id;
+    return id;
+  }
+
+  // Selection
+  function selectPOI(id){
+    const p = pois.find(x=>x.id===id);
+    if(!p) return;
+    selected = { kind:"poi", id, latlng: L.latLng(p.lat, p.lon), data:p };
+    renderRight(selected);
+    updateHeaderActions(true);
+    loadNearbyPhotos(p.lat, p.lon);
+  }
+  function selectOSM(id){
+    const o = osmPlaces.find(x=>x.id===id);
+    if(!o) return;
+    selected = { kind:"osm", id, latlng: L.latLng(o.lat, o.lon), data:o };
+    renderRight(selected);
+    updateHeaderActions(true);
+    loadNearbyPhotos(o.lat, o.lon);
+  }
+  function updateHeaderActions(has){
+    el("btnZoom").disabled = !has;
+    el("btnOpenMaps").disabled = !has;
+    el("btnOpenStreet").disabled = !has;
+  }
+
+  function renderRight(sel){
+    const body = el("rightBody");
+    body.innerHTML = "";
+    if(!sel){
+      el("selTitle").textContent = "Select a POI or place";
+      el("selSub").textContent = "Click a marker on the map or an item in the list.";
+      body.innerHTML = '<div class="rightHint">Use <b>Add POI</b> to capture a need/problem/idea. Add tags, urgency and photos.</div>';
+      updateHeaderActions(false);
+      return;
+    }
+
+    const isPOI = sel.kind === "poi";
+    const data = sel.data;
+
+    el("selTitle").textContent = data.title || (isPOI ? "Workshop POI" : "OSM place");
+    el("selSub").textContent = `${labelOf("category", data.category)} · ${sel.latlng.lat.toFixed(5)}, ${sel.latlng.lng.toFixed(5)}`;
+
+    if(isPOI){
+      body.appendChild(renderPOIEditor(data));
+      // Insert a context panel summarising the surrounding area. The panel
+      // initially shows a loading message which is replaced when the
+      // asynchronous fetch completes.
+      const ctxSec = document.createElement('div');
+      ctxSec.className = 'section';
+      const ctxTitle = document.createElement('div');
+      ctxTitle.className = 'sectionTitle';
+      ctxTitle.textContent = 'Context';
+      ctxSec.appendChild(ctxTitle);
+      const ctxHolder = document.createElement('div');
+      ctxHolder.className = 'rightHint';
+      ctxHolder.textContent = 'Loading…';
+      ctxSec.appendChild(ctxHolder);
+      body.appendChild(ctxSec);
+      // Kick off fetching of the context summary
+      fetchContext(data.lat, data.lon, ctxHolder);
+    }else{
+      body.appendChild(renderOSMDetails(data));
+    }
+
+    // Nearby photos
+    const sec = document.createElement("div");
+    sec.className = "section";
+    sec.innerHTML = '<div class="sectionTitle">Nearby photos (Wikimedia Commons)</div><div id="nearbyPhotos"><div class="rightHint">Loading…</div></div>';
+    body.appendChild(sec);
+  }
+
+  function renderPOIEditor(p){
+    const wrap = document.createElement("div");
+
+    // Basic
+    const s1 = document.createElement("div");
+    s1.className = "section";
+    s1.innerHTML = '<div class="sectionTitle">Workshop POI</div>';
+    s1.appendChild(fieldText("Title", p.title, (v)=>{ p.title=v; savePOIs(); renderList(); el("selTitle").textContent=v || "Workshop POI"; }));
+    s1.appendChild(fieldSelect("Type", POI_TYPES, p.type, (v)=>{ p.type=v; savePOIs(); }));
+    s1.appendChild(fieldSelect("Category", CATEGORY_PRESETS.map(c=>({id:c.id,label:c.label})), p.category, (v)=>{ p.category=v; savePOIs(); renderList(); el("selSub").textContent = `${labelOf("category", v)} · ${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`; }));
+    s1.appendChild(fieldSelect("Urgency", URGENCY, p.urgency, (v)=>{ p.urgency=v; savePOIs(); refreshPOIMarkers(); renderList(); }));
+    s1.appendChild(fieldTags("Tags", p.tags, (arr)=>{ p.tags=arr; savePOIs(); renderList(); }));
+    s1.appendChild(fieldTextarea("Comment", p.comment, (v)=>{ p.comment=v; savePOIs(); renderList(); }));
+    wrap.appendChild(s1);
+
+    // Links
+    const sLinks = document.createElement("div");
+    sLinks.className = "section";
+    sLinks.innerHTML = '<div class="sectionTitle">Links</div>';
+    const r = document.createElement("div");
+    r.className = "row";
+    const b1 = document.createElement("button");
+    b1.className = "btn secondary";
+    b1.textContent = "Open in OpenStreetMap";
+    b1.onclick = () => window.open(`https://www.openstreetmap.org/?mlat=${p.lat}&mlon=${p.lon}#map=18/${p.lat}/${p.lon}`, "_blank");
+    const b2 = document.createElement("button");
+    b2.className = "btn secondary";
+    b2.textContent = "Copy coordinates";
+    b2.onclick = async () => {
+      try{ await navigator.clipboard.writeText(`${p.lat}, ${p.lon}`); b2.textContent="Copied"; setTimeout(()=>b2.textContent="Copy coordinates", 900); }catch{}
+    };
+    r.appendChild(b1); r.appendChild(b2);
+    sLinks.appendChild(r);
+    wrap.appendChild(sLinks);
+
+    // Status & feedback
+    const sFb = document.createElement("div");
+    sFb.className = "section";
+    const fbTitle = document.createElement("div");
+    fbTitle.className = "sectionTitle";
+    fbTitle.textContent = "Status & Feedback";
+    sFb.appendChild(fbTitle);
+    // status select
+    sFb.appendChild(fieldSelect("Status", STATUS_OPTIONS, p.status, (v) => {
+      p.status = v;
+      savePOIs();
+    }));
+    // feedback score
+    sFb.appendChild(fieldNumber("Feedback score (0–100)", p.feedbackScore, 0, 100, (v) => {
+      p.feedbackScore = v;
+      savePOIs();
+    }));
+    // feedback comment
+    sFb.appendChild(fieldTextarea("Feedback comment", p.feedbackComment, (v) => {
+      p.feedbackComment = v;
+      savePOIs();
+    }));
+    // workshop/session date
+    sFb.appendChild(fieldDate("Workshop date", p.workshopDate, (v) => {
+      p.workshopDate = v;
+      savePOIs();
+    }));
+    // Provide context so that users understand what these fields mean.  This
+    // note explains each element of the status and feedback section.
+    const fbNote = document.createElement("div");
+    fbNote.className = "rightHint";
+    fbNote.style.marginTop = "8px";
+    fbNote.innerHTML =
+      '<b>Status</b> tracks the lifecycle of the POI (captured \u2192 shortlisted \u2192 in masterplan \u2192 implemented). ' +
+      '<b>Feedback score</b> is a 0–100 rating summarising community sentiment, and ' +
+      '<b>Feedback comment</b> captures any notes or suggestions.';
+    sFb.appendChild(fbNote);
+    wrap.appendChild(sFb);
+
+    // OSM tags section removed – tags are now entirely user-defined via the "Tags" field above.
+
+    // Photos
+    const s3 = document.createElement("div");
+    s3.className = "section";
+    s3.innerHTML = '<div class="sectionTitle">Photos</div>';
+    const grid = document.createElement("div");
+    grid.className = "photosGrid";
+    // Use custom beforePanel that falls back to a static map when empty.
+    grid.appendChild(beforePanel(p, (obj) => { p.before = obj; savePOIs(); renderRight(selected); }));
+    grid.appendChild(afterPanel(p));
+    s3.appendChild(grid);
+    wrap.appendChild(s3);
+
+    // Delete
+    const s4 = document.createElement("div");
+    s4.className = "section";
+    const del = document.createElement("button");
+    del.className = "btn danger";
+    del.textContent = "Delete POI";
+    del.onclick = () => {
+      if(!confirm("Delete this POI?")) return;
+      pois = pois.filter(x=>x.id!==p.id);
+      savePOIs();
+      selected = null;
+      refreshPOIMarkers();
+      renderList();
+      renderRight(null);
+    };
+    s4.appendChild(del);
+    wrap.appendChild(s4);
+    // Append the analysis flow to guide users through the recommended process
+    const s5 = document.createElement("div");
+    s5.className = "section";
+    const flowTitle = document.createElement("div");
+    flowTitle.className = "sectionTitle";
+    flowTitle.textContent = "Workflow";
+    s5.appendChild(flowTitle);
+    s5.appendChild(analysisFlowSection());
+    wrap.appendChild(s5);
+
+    return wrap;
+  }
+
+  function renderOSMDetails(o){
+    const wrap = document.createElement("div");
+
+    const s1 = document.createElement("div");
+    s1.className = "section";
+    s1.innerHTML = '<div class="sectionTitle">OSM place</div>';
+    const kv = document.createElement("div");
+    kv.className = "kv";
+    kv.innerHTML = `
+      <div>Category</div><div><b>${labelOf("category", o.category)}</b></div>
+      <div>OSM id</div><div><span class="mono">${o.osmType}/${o.osmId}</span></div>
+      <div>Name</div><div><b>${escapeHtml(o.title)}</b></div>
+    `;
+    s1.appendChild(kv);
+    wrap.appendChild(s1);
+
+    const s2 = document.createElement("div");
+    s2.className = "section";
+    s2.innerHTML = '<div class="sectionTitle">Tags</div>';
+    const pre = document.createElement("pre");
+    pre.className = "input mono";
+    pre.style.whiteSpace = "pre-wrap";
+    pre.textContent = tagsToText(o.tags || {});
+    s2.appendChild(pre);
+    const r = document.createElement("div");
+    r.className = "row";
+    const c1 = document.createElement("button");
+    c1.className = "btn secondary";
+    c1.textContent = "Copy tags";
+    c1.onclick = async () => {
+      try{ await navigator.clipboard.writeText(tagsToText(o.tags || {})); c1.textContent="Copied"; setTimeout(()=>c1.textContent="Copy tags", 900); }catch{}
+    };
+    const c2 = document.createElement("button");
+    c2.className = "btn secondary";
+    c2.textContent = "Open OSM object";
+    c2.onclick = () => window.open(`https://www.openstreetmap.org/${o.osmType}/${o.osmId}`, "_blank");
+    r.appendChild(c1); r.appendChild(c2);
+    s2.appendChild(r);
+    wrap.appendChild(s2);
+
+    return wrap;
+  }
+
+  // Fields
+  function fieldText(label, value, onChange){
+    const box = document.createElement("div");
+    box.style.marginBottom = "10px";
+    const l = document.createElement("div");
+    l.className = "sectionTitle";
+    l.style.marginBottom = "6px";
+    l.textContent = label;
+    const inp = document.createElement("input");
+    inp.className = "input";
+    inp.value = value || "";
+    inp.oninput = () => onChange(inp.value);
+    box.appendChild(l);
+    box.appendChild(inp);
+    return box;
+  }
+  function fieldTextarea(label, value, onChange){
+    const box = document.createElement("div");
+    box.style.marginBottom = "10px";
+    const l = document.createElement("div");
+    l.className = "sectionTitle";
+    l.style.marginBottom = "6px";
+    l.textContent = label;
+    const ta = document.createElement("textarea");
+    ta.className = "textarea";
+    ta.value = value || "";
+    ta.oninput = () => onChange(ta.value);
+    box.appendChild(l);
+    box.appendChild(ta);
+    return box;
+  }
+  function fieldSelect(label, options, value, onChange){
+    const box = document.createElement("div");
+    box.style.marginBottom = "10px";
+    const l = document.createElement("div");
+    l.className = "sectionTitle";
+    l.style.marginBottom = "6px";
+    l.textContent = label;
+    const sel = document.createElement("select");
+    sel.className = "select";
+    for(const o of options){
+      const op = document.createElement("option");
+      op.value = o.id;
+      op.textContent = o.label;
+      if(o.id === value) op.selected = true;
+      sel.appendChild(op);
+    }
+    sel.onchange = () => onChange(sel.value);
+    box.appendChild(l);
+    box.appendChild(sel);
+    return box;
+  }
+  function fieldTags(label, tags, onChange){
+    const box = document.createElement("div");
+    box.style.marginBottom = "10px";
+    const l = document.createElement("div");
+    l.className = "sectionTitle";
+    l.style.marginBottom = "6px";
+    l.textContent = label;
+
+    const inp = document.createElement("input");
+    inp.className = "input";
+    inp.placeholder = "Comma-separated tags (e.g., unsafe, dark, kids, elderly)";
+    inp.value = (tags || []).join(", ");
+    inp.onchange = () => {
+      const arr = inp.value.split(",").map(s=>s.trim()).filter(Boolean).slice(0, 25);
+      onChange(arr);
+    };
+
+    box.appendChild(l);
+    box.appendChild(inp);
+    return box;
+  }
+
+  function fieldKeyValueTags(p){
+    // Start with category mapping as defaults
+    const box = document.createElement("div");
+    const txt = document.createElement("textarea");
+    txt.className = "textarea mono";
+    txt.placeholder = "key=value (one per line)";
+    const merged = { ...(defaultOSMTagsForPOI(p)), ...(p.osmTags||{}) };
+    txt.value = tagsToText(merged);
+    txt.onchange = () => {
+      p.osmTags = parseKeyValue(txt.value);
+      savePOIs();
+      renderList();
+    };
+    const row = document.createElement("div");
+    row.className = "row";
+    row.style.marginTop = "8px";
+
+    const copy = document.createElement("button");
+    copy.className = "btn secondary";
+    copy.textContent = "Copy tags";
+    copy.onclick = async () => {
+      try{ await navigator.clipboard.writeText(tagsToText({ ...(defaultOSMTagsForPOI(p)), ...(p.osmTags||{}) })); copy.textContent="Copied"; setTimeout(()=>copy.textContent="Copy tags", 900); }catch{}
+    };
+
+    row.appendChild(copy);
+    box.appendChild(txt);
+    box.appendChild(row);
+    return box;
+  }
+
+  // Numeric input field for entering scores (e.g. feedback scores 0–100). It
+  // enforces optional minimum and maximum constraints and returns null when
+  // empty. The value provided to onChange is clamped between min and max.
+  function fieldNumber(label, value, min, max, onChange){
+    const box = document.createElement("div");
+    box.style.marginBottom = "10px";
+    const l = document.createElement("div");
+    l.className = "sectionTitle";
+    l.style.marginBottom = "6px";
+    l.textContent = label;
+    const inp = document.createElement("input");
+    inp.type = "number";
+    inp.className = "input";
+    if(min !== undefined) inp.min = min;
+    if(max !== undefined) inp.max = max;
+    inp.value = (value ?? "");
+    inp.oninput = () => {
+      const v = inp.value;
+      if(v === "" || isNaN(Number(v))) onChange(null);
+      else{
+        let num = Number(v);
+        if(typeof min === "number") num = Math.max(num, min);
+        if(typeof max === "number") num = Math.min(num, max);
+        onChange(num);
+      }
+    };
+    box.appendChild(l);
+    box.appendChild(inp);
+    return box;
+  }
+
+  // Date input field used for storing the workshop or session date. It
+  // leverages the browser’s native date picker. If the value is falsy
+  // nothing is shown.
+  function fieldDate(label, value, onChange){
+    const box = document.createElement("div");
+    box.style.marginBottom = "10px";
+    const l = document.createElement("div");
+    l.className = "sectionTitle";
+    l.style.marginBottom = "6px";
+    l.textContent = label;
+    const inp = document.createElement("input");
+    inp.type = "date";
+    inp.className = "input";
+    inp.value = value || "";
+    inp.oninput = () => onChange(inp.value || "");
+    box.appendChild(l);
+    box.appendChild(inp);
+    return box;
+  }
+
+  function defaultOSMTagsForPOI(p){
+    const tags = {};
+    tags["social:type"] = p.type;
+    tags["social:category"] = p.category;
+    tags["social:urgency"] = p.urgency;
+    if(p.tags?.length) tags["social:tags"] = p.tags.join(";");
+    if(p.comment?.trim()) tags["note"] = p.comment.trim().slice(0, 240);
+
+    // Optional multi-use flags
+    tags["social:time_use"] = [
+      p.timeUse?.weekday ? "weekday" : null,
+      p.timeUse?.weekend ? "weekend" : null,
+      p.timeUse?.day ? "day" : null,
+      p.timeUse?.evening ? "evening" : null
+    ].filter(Boolean).join(",");
+
+    // A light “OSM-like” suggestion
+    if(p.category === "meeting") tags["amenity"] = "community_centre";
+    if(p.category === "play") tags["leisure"] = "playground";
+    if(p.category === "benches") tags["amenity"] = "bench";
+    if(p.category === "sports") tags["leisure"] = "sports_centre";
+    if(p.category === "parking") tags["amenity"] = "parking";
+    return tags;
+  }
+
+  // Photo panels
+  function photoPanel(title, obj, onChange){
+    const box = document.createElement("div");
+    box.className = "photoBox";
+    const h = document.createElement("h3");
+    h.textContent = title;
+
+    const wrap = document.createElement("div");
+    wrap.className = "imgWrap";
+    if(obj?.mode === "url" && obj.data){
+      const img = document.createElement("img"); img.src = obj.data; img.alt = title;
+      wrap.innerHTML = ""; wrap.appendChild(img);
+    }else if(obj?.mode === "upload" && obj.data){
+      const img = document.createElement("img"); img.src = obj.data; img.alt = title;
+      wrap.innerHTML = ""; wrap.appendChild(img);
+    }else{
+      wrap.textContent = "No image";
+    }
+
+    const actions = document.createElement("div");
+    actions.className = "imgActions";
+
+    const up = document.createElement("input");
+    up.type = "file"; up.accept = "image/*"; up.style.display="none";
+    up.onchange = async () => {
+      const f = up.files?.[0];
+      if(!f) return;
+      const dataUrl = await fileToDataURL(f, 1400);
+      onChange({ mode:"upload", data: dataUrl });
+    };
+
+    const bUpload = document.createElement("button");
+    bUpload.className = "btn secondary";
+    bUpload.textContent = "Upload";
+    bUpload.onclick = () => up.click();
+
+    const bUrl = document.createElement("button");
+    bUrl.className = "btn secondary";
+    bUrl.textContent = "Use URL";
+    bUrl.onclick = () => {
+      const u = prompt("Paste an image URL (https://...)");
+      if(!u) return;
+      onChange({ mode:"url", data:u.trim() });
+    };
+
+    const bClear = document.createElement("button");
+    bClear.className = "btn danger";
+    bClear.textContent = "Clear";
+    bClear.onclick = () => onChange({ mode:"none", data:null });
+
+    actions.appendChild(bUpload);
+    actions.appendChild(bUrl);
+    actions.appendChild(bClear);
+
+    box.appendChild(h);
+    box.appendChild(wrap);
+    box.appendChild(actions);
+    box.appendChild(up);
+    return box;
+  }
+
+  // Custom before panel which falls back to a static OpenStreetMap snapshot when
+  // no user photo is supplied. The snapshot uses the point's coordinates to
+  // display a map tile with a marker. This avoids blank panels when editing
+  // newly added POIs and removes the dependency on Wikimedia Commons for
+  // "before" images. The caller should pass the full POI object (p) so we
+  // can access its latitude/longitude.
+  function beforePanel(p, onChange){
+    const box = document.createElement("div");
+    box.className = "photoBox";
+    const h = document.createElement("h3");
+    h.textContent = "Before (current)";
+    box.appendChild(h);
+    const wrap = document.createElement("div");
+    wrap.className = "imgWrap";
+    // Determine what to show: user supplied upload/url or a static OSM map.
+    if(p.before && p.before.mode !== "none" && p.before.data){
+      // Accept both absolute URLs and relative file names for local assets. If the
+      // string does not appear to be a full URL (no scheme prefix) we leave it
+      // as-is and rely on the browser to resolve it relative to the current
+      // document. This allows users to place ready-made photos in the same
+      // directory as this HTML file and reference them by filename.
+      const img = document.createElement("img");
+      img.src = p.before.data;
+      img.alt = "Before";
+      wrap.innerHTML = "";
+      wrap.appendChild(img);
+    }else if(typeof p.lat === "number" && typeof p.lon === "number"){
+      // Build a static map URL from OpenStreetMap. The static map service does
+      // not require an API key and returns a PNG centred on the POI. We mark
+      // the location with a red pushpin. Adjust the size and zoom as needed.
+      const center = `${p.lat},${p.lon}`;
+      const zoom = 17;
+      const size = "600x300";
+      const marker = `${p.lat},${p.lon},red-pushpin`;
+      const staticUrl = `https://staticmap.openstreetmap.de/staticmap.php?center=${center}&zoom=${zoom}&size=${size}&markers=${marker}`;
+      const img = document.createElement("img");
+      img.src = staticUrl;
+      img.alt = "Map snapshot";
+      wrap.innerHTML = "";
+      wrap.appendChild(img);
+    }else{
+      wrap.textContent = "No image";
+    }
+    box.appendChild(wrap);
+    const actions = document.createElement("div");
+    actions.className = "imgActions";
+    // Hidden file input for uploads
+    const up = document.createElement("input");
+    up.type = "file";
+    up.accept = "image/*";
+    up.style.display = "none";
+    up.onchange = async () => {
+      const f = up.files?.[0];
+      if(!f) return;
+      const dataUrl = await fileToDataURL(f, 1400);
+      onChange({ mode:"upload", data: dataUrl });
+    };
+    const bUpload = document.createElement("button");
+    bUpload.className = "btn secondary";
+    bUpload.textContent = "Upload";
+    bUpload.onclick = () => up.click();
+    const bUrl = document.createElement("button");
+    bUrl.className = "btn secondary";
+    bUrl.textContent = "Use URL";
+    bUrl.onclick = () => {
+      const u = prompt("Paste an image URL (https://...)");
+      if(!u) return;
+      onChange({ mode:"url", data: u.trim() });
+    };
+    const bClear = document.createElement("button");
+    bClear.className = "btn danger";
+    bClear.textContent = "Clear";
+    bClear.onclick = () => onChange({ mode:"none", data: null });
+    const bStreet = document.createElement("button");
+    bStreet.className = "btn secondary";
+    bStreet.textContent = "Street View";
+    bStreet.onclick = () => {
+      // Provide quick access to Google Street View for the current POI location.
+      if(typeof p.lat === 'number' && typeof p.lon === 'number'){
+        openStreetView({ lat: p.lat, lng: p.lon });
+      }
+    };
+    actions.appendChild(bUpload);
+    actions.appendChild(bUrl);
+    actions.appendChild(bClear);
+    // Add Street View button to allow users to view current conditions via Google
+    // Street View directly from the photo panel. This satisfies the request for
+    // a Street View option when no “before” image is available.
+    actions.appendChild(bStreet);
+    box.appendChild(actions);
+    box.appendChild(up);
+    return box;
+  }
+
+  // Build an analysis flow section summarising the recommended workflow. This
+  // visual guide breaks the process of documenting a POI into six discrete
+  // steps: tagging the issue, adding descriptive text and tags, fetching the
+  // surrounding context, brainstorming solutions, mapping the expected effects
+  // through a feedback loop, and capturing community feedback. It returns a
+  // DOM element that can be appended to an editing panel.
+  function analysisFlowSection(){
+    const flow = document.createElement("div");
+    flow.className = "analysisFlow";
+    const steps = [
+      { icon: "🏷️", title: "Create tag", desc: "Describe the issue succinctly" },
+      { icon: "💬", title: "Comment + tags", desc: "Add notes and categories" },
+      { icon: "🗺️", title: "Context", desc: "Fetch geo/topo/cat info" },
+      { icon: "💡", title: "Find solutions", desc: "Look up ideas or templates" },
+      { icon: "🔄", title: "Map effects", desc: "Consider the feedback loops" },
+      { icon: "⭐", title: "Feedback", desc: "Collect ratings & refine" }
+    ];
+    for(const st of steps){
+      const card = document.createElement("div");
+      card.className = "analysisStep";
+      const ico = document.createElement("div");
+      ico.className = "icon";
+      ico.textContent = st.icon;
+      const ttl = document.createElement("strong");
+      ttl.textContent = st.title;
+      const sm = document.createElement("small");
+      sm.textContent = st.desc;
+      card.appendChild(ico);
+      card.appendChild(ttl);
+      card.appendChild(sm);
+      flow.appendChild(card);
+    }
+    return flow;
+  }
+
+  function afterPanel(p){
+    const box = document.createElement("div");
+    box.className = "photoBox";
+    const h = document.createElement("h3");
+    h.textContent = "After (inspiration)";
+    box.appendChild(h);
+
+    const sel = document.createElement("select");
+    sel.className = "select";
+    for(const t of SOLUTION_TEMPLATES){
+      const op = document.createElement("option");
+      op.value = t.id; op.textContent = t.label;
+      if(p.after?.data === t.id) op.selected = true;
+      sel.appendChild(op);
+    }
+    sel.onchange = async () => {
+      p.after = { mode:"template", data: sel.value };
+      savePOIs();
+      await renderTemplateGallery(sel.value, gallery, (imgUrl)=>{ p.after = { mode:"url", data: imgUrl }; savePOIs(); renderRight(selected); });
+    };
+    box.appendChild(sel);
+
+    const wrap = document.createElement("div");
+    wrap.className = "imgWrap";
+    if(p.after?.mode === "url" && p.after?.data){
+      const img = document.createElement("img"); img.src = p.after.data; img.alt = "After";
+      wrap.innerHTML = ""; wrap.appendChild(img);
+    }else{
+      wrap.textContent = "Pick a template below";
+    }
+    box.appendChild(wrap);
+
+    const gallery = document.createElement("div");
+    gallery.className = "gallery";
+    box.appendChild(gallery);
+
+    const actions = document.createElement("div");
+    actions.className = "imgActions";
+    const bPick = document.createElement("button");
+    bPick.className = "btn secondary";
+    bPick.textContent = "Refresh templates";
+    bPick.onclick = () => renderTemplateGallery(sel.value, gallery, (imgUrl)=>{ p.after = { mode:"url", data: imgUrl }; savePOIs(); renderRight(selected); });
+
+    actions.appendChild(bPick);
+    box.appendChild(actions);
+
+    // initial gallery
+    renderTemplateGallery(p.after?.data || sel.value, gallery, (imgUrl)=>{ p.after = { mode:"url", data: imgUrl }; savePOIs(); renderRight(selected); });
+
+    return box;
+  }
+
+  async function renderTemplateGallery(templateId, galleryEl, onPick){
+    galleryEl.innerHTML = "";
+    const tpl = SOLUTION_TEMPLATES.find(t=>t.id===templateId);
+    if(!tpl){ galleryEl.innerHTML = '<div class="rightHint">No template.</div>'; return; }
+
+    // If a local image is defined for this template use it directly. This avoids
+    // relying on external services which may block file-based access. The
+    // gallery will consist of a single tile showing the local image. Clicking it
+    // will assign that image as the "after" picture.
+    if(tpl.img){
+      const d = document.createElement("div");
+      d.className = "thumb";
+      d.innerHTML = `<img src="${escapeAttr(tpl.img)}" alt=""><span>${escapeHtml(tpl.label)}</span>`;
+      d.onclick = () => onPick(tpl.img);
+      galleryEl.appendChild(d);
+      return;
+    }
+    // Otherwise fall back to Wikimedia Commons search (if enabled). If
+    // commonsSearchImages returns nothing we notify the user.
+    const tiles = await commonsSearchImages(tpl.query, 9);
+    if(tiles.length === 0){
+      galleryEl.innerHTML = '<div class="rightHint">No results found. Try refresh.</div>';
+      return;
+    }
+    for(const t of tiles){
+      const d = document.createElement("div");
+      d.className = "thumb";
+      d.innerHTML = `<img src="${escapeAttr(t.thumb)}" alt=""><span>${escapeHtml(t.title)}</span>`;
+      d.onclick = () => onPick(t.full || t.thumb);
+      galleryEl.appendChild(d);
+    }
+  }
+
+  // Wikimedia Commons: search images by keyword (real photos)
+  async function commonsSearchImages(query, limit=9){
+    try{
+      const url = `${COMMONS_API}&action=query&format=json&generator=search&gsrnamespace=6&gsrsearch=${encodeURIComponent(query)}&gsrlimit=${Math.min(limit, 15)}&prop=pageimages|info&inprop=url&piprop=thumbnail&pithumbsize=420`;
+      const r = await fetch(url);
+      if(!r.ok) return [];
+      const j = await r.json();
+      const pages = j?.query?.pages ? Object.values(j.query.pages) : [];
+      return pages
+        .filter(p => p.thumbnail?.source)
+        .map(p => ({
+          title: (p.title || "").replace(/^File:/,""),
+          thumb: p.thumbnail.source,
+          full: p.fullurl || p.canonicalurl || p.thumbnail.source
+        }))
+        .slice(0, limit);
+    }catch{
+      return [];
+    }
+  }
+
+  // Fetch the first geotagged Wikimedia Commons photo near a location
+  async function fetchNearbyPhotoURL(lat, lon){
+    try{
+      const url = `${COMMONS_API}&action=query&format=json&generator=geosearch&ggscoord=${lat}%7C${lon}&ggsradius=1000&ggslimit=8&prop=pageimages|info&inprop=url&piprop=thumbnail&pithumbsize=500`;
+      const res = await fetch(url);
+      if(!res.ok) return null;
+      const j = await res.json();
+      const pages = j?.query?.pages ? Object.values(j.query.pages) : [];
+      const pics = pages.filter(p => p.thumbnail?.source);
+      if(pics.length > 0){
+        const first = pics[0];
+        return first.thumbnail?.source || null;
+      }
+      return null;
+    }catch{
+      return null;
+    }
+  }
+
+  // Fetch the first inspiration image for a given solution template
+  async function fetchTemplateImage(templateId){
+    const tpl = SOLUTION_TEMPLATES.find(t => t.id === templateId);
+    if(!tpl) return null;
+    // Prefer local image if available
+    if(tpl.img) return tpl.img;
+    const imgs = await commonsSearchImages(tpl.query, 3);
+    if(imgs.length > 0){
+      const img = imgs[0];
+      return img.full || img.thumb;
+    }
+    return null;
+  }
+
+  // Automatically populate before/after images for a new POI
+  async function autoPopulateImagesForPOI(p){
+    // Only populate if there is currently no user-provided image
+    if(!p.before || p.before.mode === 'none'){
+      // Use a static map snapshot for the before photo to ensure there is always
+      // something meaningful shown. The beforePanel will automatically
+      // construct the URL when rendering, so here we simply mark the field
+      // as "none" (no data) to trigger fallback behaviour. Setting to null
+      // explicitly keeps the property for future edits.
+      p.before = { mode:'none', data: null };
+    }
+    // After: fetch from default or current template using local images
+    const tplId = p.after?.data || 'pocket-park';
+    const afterUrl = await fetchTemplateImage(tplId);
+    if(afterUrl){ p.after = { mode:'url', data: afterUrl }; }
+  }
+
+  // Wikimedia Commons: geosearch near point
+  async function loadNearbyPhotos(lat, lon){
+    clusterPhotos.clearLayers();
+    const holder = document.getElementById("nearbyPhotos");
+    if(holder) holder.innerHTML = '<div class="rightHint">Loading…</div>';
+
+    try{
+      const url = `${COMMONS_API}&action=query&format=json&generator=geosearch&ggscoord=${lat}%7C${lon}&ggsradius=1500&ggslimit=12&prop=pageimages|info&inprop=url&piprop=thumbnail&pithumbsize=420`;
+      const r = await fetch(url);
+      if(!r.ok) throw new Error("Commons request failed");
+      const j = await r.json();
+      const pages = j?.query?.pages ? Object.values(j.query.pages) : [];
+      const pics = pages
+        .filter(p => p.thumbnail?.source)
+        .map(p => ({
+          title: p.title,
+          thumb: p.thumbnail.source,
+          page: p.fullurl || p.canonicalurl || null,
+          lat: p.coordinates?.[0]?.lat,
+          lon: p.coordinates?.[0]?.lon
+        }));
+
+      // Render panel gallery
+      if(holder){
+        if(pics.length === 0){
+          holder.innerHTML = '<div class="rightHint">No geotagged photos found nearby on Wikimedia Commons.</div>';
+        }else{
+          const g = document.createElement("div");
+          g.className = "gallery";
+          for(const pic of pics){
+            const d = document.createElement("div");
+            d.className = "thumb";
+            d.innerHTML = `<img src="${escapeAttr(pic.thumb)}" alt=""><span>${escapeHtml(shorten(pic.title, 32))}</span>`;
+            d.onclick = () => { if(pic.page) window.open(pic.page, "_blank"); };
+            g.appendChild(d);
+
+            // Optional map marker
+            if(typeof pic.lat === "number" && typeof pic.lon === "number"){
+              const m = L.marker([pic.lat, pic.lon], { icon: markerIcon("osm") });
+              m.bindPopup(`<div style="max-width:240px">
+                <div style="font-weight:800;margin-bottom:6px">${escapeHtml(shorten(pic.title, 60))}</div>
+                <img src="${escapeAttr(pic.thumb)}" style="width:100%;border-radius:10px;border:1px solid rgba(148,163,184,.18)"/>
+              </div>`, { closeButton:true });
+              clusterPhotos.addLayer(m);
+            }
+          }
+          holder.innerHTML = "";
+          holder.appendChild(g);
+        }
+      }
+    }catch(e){
+      if(holder) holder.innerHTML = '<div class="rightHint">Could not load nearby photos.</div>';
+    }
+  }
+
+  // Overpass
+  async function loadOSMForView(){
+    if(map.getZoom() < CONFIG.minZoomForOverpass){
+      alert(`Please zoom in to at least zoom ${CONFIG.minZoomForOverpass} before loading OSM (faster + avoids timeouts).`);
+      return;
+    }
+    const b = map.getBounds();
+    const bbox = [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()]; // S,W,N,E
+
+    const cats = Array.from(selectedCategories);
+    const query = buildOverpassQuery(bbox, cats);
+
+    el("btnLoadOSM").textContent = "Loading…";
+    el("btnLoadOSM").disabled = true;
+
+    try{
+      const data = await overpassRequest(query);
+      osmPlaces = normalizeOverpass(data);
+      refreshOSMMarkers();
+      renderList();
+    }catch(err){
+      console.error(err);
+      alert(overpassUserMessage(err));
+    }finally{
+      el("btnLoadOSM").textContent = "Load OSM";
+      el("btnLoadOSM").disabled = false;
+    }
+  }
+
+  function buildOverpassQuery(bbox, catIds){
+    const [s,w,n,e] = bbox;
+    const parts = [];
+    const cats = CATEGORY_PRESETS.filter(c => catIds.includes(c.id));
+
+    const addKV = (k,v) => {
+      const selector = v === "*" ? `[${k}]` : `[${k}="${v}"]`;
+      parts.push(`node${selector}(${s},${w},${n},${e});`);
+      parts.push(`way${selector}(${s},${w},${n},${e});`);
+      parts.push(`relation${selector}(${s},${w},${n},${e});`);
+    };
+
+    cats.forEach(c => c.osm.forEach(([k,v]) => addKV(k,v)));
+
+    // Reasonable output for points + center for areas
+    return `[out:json][timeout:25];(${parts.join("")});out center tags;`;
+  }
+
+  async function overpassRequest(query){
+    const endpoints = [...CONFIG.overpassEndpoints];
+    const saved = localStorage.getItem(LAST_ENDPOINT_KEY);
+    if(saved && endpoints.includes(saved)){
+      endpoints.splice(endpoints.indexOf(saved),1);
+      endpoints.unshift(saved);
+    }
+
+    let lastErr = null;
+
+    for(const endpoint of endpoints){
+      try{
+        const controller = new AbortController();
+        const t = setTimeout(()=>controller.abort(), 28000);
+
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type":"application/x-www-form-urlencoded; charset=UTF-8" },
+          body: "data=" + encodeURIComponent(query),
+          signal: controller.signal
+        });
+
+        clearTimeout(t);
+
+        if(!res.ok){
+          lastErr = new Error(`Overpass HTTP ${res.status}`);
+          continue;
+        }
+        const json = await res.json();
+        localStorage.setItem(LAST_ENDPOINT_KEY, endpoint);
+        return json;
+      }catch(e){
+        lastErr = e;
+        continue;
+      }
+    }
+    throw lastErr || new Error("Overpass failed");
+  }
+
+  function overpassUserMessage(err){
+    const msg = String(err?.message || err || "Overpass error");
+    if(location.protocol === "file:"){
+      return "Overpass request blocked (likely CORS from file://). Run this via a local server (http://localhost) and try again.";
+    }
+    if(msg.includes("AbortError")) return "Overpass timed out. Zoom in more and try again.";
+    if(msg.includes("429")) return "Overpass rate limit reached. Wait a moment and try again.";
+    return "Could not load OSM places. Zoom in and try again. If it keeps failing, Overpass may be temporarily down.";
+  }
+
+  function normalizeOverpass(data){
+    const els = data?.elements || [];
+    const out = [];
+    for(const el of els){
+      const tags = el.tags || {};
+      const title = tags.name || tags.operator || tags.brand || "OSM place";
+      const lat = el.type === "node" ? el.lat : el.center?.lat;
+      const lon = el.type === "node" ? el.lon : el.center?.lon;
+      if(typeof lat !== "number" || typeof lon !== "number") continue;
+
+      const category = inferCategory(tags);
+      out.push({
+        id: `${el.type}/${el.id}`,
+        osmType: el.type,
+        osmId: el.id,
+        title,
+        lat, lon,
+        category,
+        tags
+      });
+    }
+    return out;
+  }
+
+  function inferCategory(tags){
+    const get = (k)=>tags[k];
+    const has = (k)=>tags[k] !== undefined;
+
+    // Very small inference set; depends on your category chips
+    if(get("amenity")==="community_centre" || get("amenity")==="social_facility" || get("amenity")==="library") return "meeting";
+    if(get("leisure")==="playground" || get("amenity")==="school" || get("amenity")==="kindergarten") return "play";
+    if(get("amenity")==="bench" || get("amenity")==="shelter" || get("tourism")==="picnic_site") return "benches";
+    if(get("leisure")==="pitch" || get("leisure")==="sports_centre" || get("leisure")==="fitness_station") return "sports";
+    if(get("amenity")==="parking" || get("amenity")==="bicycle_parking") return "parking";
+    if(get("highway")==="crossing" || has("traffic_calming")) return "walk";
+    if(get("highway")==="street_lamp") return "safety";
+    return "meeting";
+  }
+
+  // Export/Import
+  function exportGeoJSON(){
+    const fc = {
+      type:"FeatureCollection",
+      features: pois.map(p => ({
+        type:"Feature",
+        geometry:{ type:"Point", coordinates:[p.lon, p.lat] },
+        properties:{
+          id: p.id,
+          kind: "workshop",
+          title: p.title,
+          type: p.type,
+          category: p.category,
+          tags: p.tags,
+          comment: p.comment,
+          urgency: p.urgency,
+          timeUse: p.timeUse,
+          before: p.before,
+          after: p.after,
+          osmTags: { ...(defaultOSMTagsForPOI(p)), ...(p.osmTags||{}) },
+          createdAt: p.createdAt
+          ,status: p.status
+          ,feedbackScore: p.feedbackScore
+          ,feedbackComment: p.feedbackComment
+          ,workshopDate: p.workshopDate
+        }
+      }))
+    };
+    const blob = new Blob([JSON.stringify(fc, null, 2)], { type:"application/geo+json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "twekkelerveld_social_pois.geojson";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  }
+
+  function handleImportFile(e){
+    const f = e.target.files?.[0];
+    if(!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try{
+        const j = JSON.parse(String(reader.result||""));
+        const imported = parseImported(j);
+        if(imported.length === 0) throw new Error("No POIs in file");
+        pois = [...imported, ...pois];
+        savePOIs();
+        refreshPOIMarkers();
+        renderList();
+        alert(`Imported ${imported.length} POIs.`);
+      }catch(err){
+        alert("Import failed. Please provide a GeoJSON FeatureCollection (points) exported from this tool.");
+      }finally{
+        el("fileImport").value = "";
+      }
+    };
+    reader.readAsText(f);
+  }
+
+  function parseImported(j){
+    const out = [];
+    if(j?.type === "FeatureCollection" && Array.isArray(j.features)){
+      for(const ft of j.features){
+        if(ft?.geometry?.type !== "Point") continue;
+        const [lon, lat] = ft.geometry.coordinates || [];
+        if(typeof lat !== "number" || typeof lon !== "number") continue;
+        const p = ft.properties || {};
+        out.push({
+          id: p.id || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())+Math.random()),
+          kind:"workshop",
+          type: p.type || "idea",
+          title: p.title || "Imported POI",
+          category: p.category || "meeting",
+          tags: Array.isArray(p.tags) ? p.tags : [],
+          comment: p.comment || "",
+          urgency: p.urgency || "low",
+          timeUse: p.timeUse || { weekday:true, weekend:false, day:true, evening:false },
+          before: p.before || { mode:"none", data:null },
+          after: p.after || { mode:"template", data:"pocket-park" },
+          osmTags: p.osmTags || {},
+          lat: +(+lat).toFixed(6),
+          lon: +(+lon).toFixed(6),
+          createdAt: p.createdAt || new Date().toISOString(),
+          status: p.status || 'captured',
+          feedbackScore: p.feedbackScore === undefined ? null : p.feedbackScore,
+          feedbackComment: p.feedbackComment || '',
+          workshopDate: p.workshopDate || ''
+        });
+      }
+    }
+    return out;
+  }
+
+  // Utils
+  function tagsToText(obj){
+    return Object.entries(obj||{})
+      .filter(([k,v]) => k && v !== undefined && v !== null && String(v).length)
+      .map(([k,v]) => `${k}=${String(v)}`)
+      .join("\n");
+  }
+  function parseKeyValue(text){
+    const out = {};
+    (text||"").split(/\r?\n/).map(l=>l.trim()).filter(Boolean).forEach(line=>{
+      const i = line.indexOf("=");
+      if(i <= 0) return;
+      const k = line.slice(0,i).trim();
+      const v = line.slice(i+1).trim();
+      if(!k || !v) return;
+      out[k]=v;
+    });
+    return out;
+  }
+  async function fileToDataURL(file, maxSide=1400){
+    const dataUrl = await new Promise((resolve,reject)=>{
+      const r = new FileReader();
+      r.onload = ()=>resolve(String(r.result));
+      r.onerror = reject;
+      r.readAsDataURL(file);
+    });
+    // downscale in-browser to keep localStorage workable
+    try{
+      const img = await new Promise((resolve,reject)=>{
+        const i = new Image();
+        i.onload = ()=>resolve(i);
+        i.onerror = reject;
+        i.src = dataUrl;
+      });
+      const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+      const c = document.createElement("canvas");
+      c.width = w; c.height = h;
+      const ctx = c.getContext("2d");
+      ctx.drawImage(img, 0, 0, w, h);
+      return c.toDataURL("image/jpeg", 0.85);
+    }catch{
+      return dataUrl;
+    }
+  }
+  function escapeHtml(s){ return String(s||"").replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+  function escapeAttr(s){ return escapeHtml(s).replace(/\n/g," "); }
+  function shorten(s,n){ s=String(s||""); return s.length>n ? s.slice(0,n-1)+"…" : s; }
+
+  function openGoogleMaps(latlng){
+    const {lat,lng} = {lat: latlng.lat, lng: latlng.lng};
+    window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, "_blank");
+  }
+  function openStreetView(latlng){
+    const {lat,lng} = {lat: latlng.lat, lng: latlng.lng};
+    window.open(`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}`, "_blank");
+  }
+
+  // Given a POI and a segment name ('before' or 'after'), return a best
+  // available image URL to display in the compare strip. If no image is
+  // available an empty string is returned. Template selections are resolved
+  // against the SOLUTION_TEMPLATES array to locate local assets.
+  function getPOIImageSrc(p, segment){
+    const obj = p && p[segment];
+    if(!obj || !obj.mode) return "";
+    if(obj.mode === "none") return "";
+    // For URL or uploaded data we return the data directly.
+    if(obj.mode === "url" || obj.mode === "upload") return obj.data || "";
+    // Template: look up the local image.
+    if(obj.mode === "template"){
+      const tpl = SOLUTION_TEMPLATES.find(t => t.id === obj.data);
+      return tpl && tpl.img ? tpl.img : "";
+    }
+    // Fallback: assume data field contains a usable URL or data URI.
+    return obj.data || "";
+  }
+
+  // Toggle the pinned state of a POI. Only workshop POIs can be pinned.
+  function togglePin(kind, id){
+    if(kind !== 'poi') return;
+    const idx = pinned.indexOf(id);
+    if(idx >= 0) pinned.splice(idx,1); else {
+      // Limit to a maximum of 4 items to avoid clutter
+      if(pinned.length >= 4) pinned.shift();
+      pinned.push(id);
+    }
+    renderCompareStrip();
+    renderList();
+  }
+
+  // Render the compare strip showing the currently pinned POIs. When no items
+  // are pinned the strip is hidden. Each item shows the title, category and
+  // thumbnails of the before and after images. Clicking an item selects it.
+  function renderCompareStrip(){
+    const strip = document.getElementById('compareStrip');
+    if(!strip) return;
+    strip.innerHTML = '';
+    if(pinned.length === 0){ strip.style.display = 'none'; return; }
+    strip.style.display = 'flex';
+    pinned.forEach(id => {
+      const p = pois.find(x => x.id === id);
+      if(!p) return;
+      const item = document.createElement('div');
+      item.className = 'compareItem';
+      const close = document.createElement('div');
+      close.className = 'close';
+      close.textContent = '✕';
+      close.onclick = (e) => {
+        e.stopPropagation();
+        pinned = pinned.filter(pid => pid !== id);
+        renderCompareStrip();
+        renderList();
+      };
+      const h4 = document.createElement('h4'); h4.textContent = p.title || 'POI';
+      const meta = document.createElement('div'); meta.className = 'meta'; meta.textContent = labelOf('category', p.category);
+      const beforeImg = document.createElement('img'); beforeImg.src = getPOIImageSrc(p, 'before') || ''; beforeImg.alt = 'before';
+      const afterImg = document.createElement('img'); afterImg.src = getPOIImageSrc(p, 'after') || ''; afterImg.alt = 'after';
+      item.onclick = () => selectPOI(p.id);
+      item.appendChild(close);
+      item.appendChild(h4);
+      item.appendChild(meta);
+      item.appendChild(beforeImg);
+      item.appendChild(afterImg);
+      strip.appendChild(item);
+    });
+  }
+
+  // Fetch a context summary for a given coordinate. The summary includes a
+  // reverse‑geocoded address and distances to common amenities (park/playground,
+  // benches, parking, crossings) as well as landuse classification. The
+  // results are appended as text nodes into the provided holder element.
+  async function fetchContext(lat, lon, holder){
+    try{
+      holder.innerHTML = '<div class="rightHint">Loading…</div>';
+      let address = '';
+      try{
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}`);
+        if(res.ok){
+          const j = await res.json();
+          address = j.display_name || '';
+        }
+      }catch(_e){ address = ''; }
+      const radius = 100; // metres
+      const query = `[out:json][timeout:20];(node(around:${radius},${lat},${lon})[leisure=park];node(around:${radius},${lat},${lon})[leisure=playground];node(around:${radius},${lat},${lon})[amenity=bench];node(around:${radius},${lat},${lon})[amenity=parking];node(around:${radius},${lat},${lon})[highway=crossing];way(around:${radius},${lat},${lon})[landuse];node(around:${radius},${lat},${lon})[landuse];);out center tags;`;
+      let data = null;
+      try{ data = await overpassRequest(query); }catch(_err){ data = null; }
+      const features = (data?.elements || []).map(el => {
+        const lat2 = el.type === 'node' ? el.lat : el.center?.lat;
+        const lon2 = el.type === 'node' ? el.lon : el.center?.lon;
+        const tags = el.tags || {};
+        const dist = (typeof lat2 === 'number' && typeof lon2 === 'number') ? Math.round(distanceMeters(lat, lon, lat2, lon2)) : null;
+        return { dist, tags };
+      });
+      let nearestPark = Infinity, nearestBench = Infinity, nearestParking = Infinity, nearestCrossing = Infinity;
+      let landuse = null;
+      for(const f of features){
+        const t = f.tags;
+        if(f.dist == null) continue;
+        if(t.leisure === 'park' || t.leisure === 'playground'){
+          if(f.dist < nearestPark) nearestPark = f.dist;
+        }
+        if(t.amenity === 'bench'){
+          if(f.dist < nearestBench) nearestBench = f.dist;
+        }
+        if(t.amenity === 'parking'){
+          if(f.dist < nearestParking) nearestParking = f.dist;
+        }
+        if(t.highway === 'crossing'){
+          if(f.dist < nearestCrossing) nearestCrossing = f.dist;
+        }
+        if(!landuse && t.landuse){ landuse = t.landuse; }
+      }
+      const lines = [];
+      if(address) lines.push('Address: ' + address);
+      if(Number.isFinite(nearestPark)) lines.push('Nearest park/playground: ' + nearestPark + ' m');
+      if(Number.isFinite(nearestBench)) lines.push('Nearest bench: ' + nearestBench + ' m');
+      if(Number.isFinite(nearestParking)) lines.push('Nearest parking: ' + nearestParking + ' m');
+      if(Number.isFinite(nearestCrossing)) lines.push('Nearest crossing: ' + nearestCrossing + ' m');
+      if(landuse) lines.push('Landuse: ' + landuse);
+      if(lines.length === 0) lines.push('No nearby context features found');
+      holder.innerHTML = lines.map(l => `<div>${escapeHtml(l)}</div>`).join('');
+    }catch(e){
+      holder.innerHTML = '<div class="rightHint">Could not load context.</div>';
+    }
+  }
+
+  // Compute the great‑circle distance between two coordinates using the
+  // Haversine formula. Returns metres.
+  function distanceMeters(lat1, lon1, lat2, lon2){
+    const R = 6371000;
+    const φ1 = lat1 * Math.PI/180;
+    const φ2 = lat2 * Math.PI/180;
+    const Δφ = (lat2 - lat1) * Math.PI/180;
+    const Δλ = (lon2 - lon1) * Math.PI/180;
+    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ/2) * Math.sin(Δλ/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
+  // Hook header buttons to selection
+  function updateExternalButtons(){
+    if(!selected?.latlng) return;
+    el("btnOpenMaps").onclick = () => openGoogleMaps(selected.latlng);
+    el("btnOpenStreet").onclick = () => openStreetView(selected.latlng);
+  }
+  map.on("click", updateExternalButtons);
+
+  // Export PDF button
+  const btnExportPDF = el("btnExportPDF");
+  if(btnExportPDF){
+    btnExportPDF.onclick = () => exportPDF();
+  }
+
+  // Convert remote URL to data URL (for PDF export)
+  async function urlToDataURL(url){
+    try{
+      const res = await fetch(url);
+      const blob = await res.blob();
+      return await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    }catch{
+      return null;
+    }
+  }
+
+  // Export PDF with list of POIs and before/after images
+  // Export PDF with list of POIs and before/after images. If the external jsPDF
+  // library is unavailable (e.g. when the page is opened via file:// and remote
+  // scripts are blocked), a fallback implementation generates a very simple
+  // PDF containing only text using a minimal PDF generator defined below.
+  async function exportPDF(){
+    try{
+      // Attempt to use the jsPDF library if it has loaded. The library is
+      // delivered via CDN at the top of this file. When opened over HTTP it
+      // should be present on window.jspdf. If not, the fallback below will
+      // execute.
+      if(!window.jspdf || !window.jspdf.jsPDF) throw new Error('jsPDF unavailable');
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      let y = 10;
+      const lineHeight = 5;
+      // Insert a summary at the beginning of the PDF. We compute counts per
+      // category, urgency and status as well as the most frequent tags.
+      const categoryCounts = {};
+      const urgencyCounts = {};
+      const statusCounts = {};
+      const tagCounts = {};
+      for(const p of pois){
+        categoryCounts[p.category] = (categoryCounts[p.category] || 0) + 1;
+        urgencyCounts[p.urgency] = (urgencyCounts[p.urgency] || 0) + 1;
+        statusCounts[p.status] = (statusCounts[p.status] || 0) + 1;
+        (p.tags || []).forEach(t => { tagCounts[t] = (tagCounts[t] || 0) + 1; });
+      }
+      // Write summary lines
+      doc.setFontSize(16);
+      doc.text('Summary', 10, y);
+      y += lineHeight * 2;
+      doc.setFontSize(11);
+      // Categories
+      doc.text('By category:', 10, y);
+      y += lineHeight;
+      Object.entries(categoryCounts).sort((a,b) => b[1] - a[1]).forEach(([k,v]) => {
+        doc.text(`${labelOf('category', k)}: ${v}`, 14, y);
+        y += lineHeight;
+      });
+      // Urgency
+      y += lineHeight;
+      doc.text('By urgency:', 10, y);
+      y += lineHeight;
+      Object.entries(urgencyCounts).sort((a,b) => b[1] - a[1]).forEach(([k,v]) => {
+        doc.text(`${labelOf('urgency', k)}: ${v}`, 14, y);
+        y += lineHeight;
+      });
+      // Status
+      y += lineHeight;
+      doc.text('By status:', 10, y);
+      y += lineHeight;
+      Object.entries(statusCounts).sort((a,b) => b[1] - a[1]).forEach(([k,v]) => {
+        doc.text(`${labelOf('status', k)}: ${v}`, 14, y);
+        y += lineHeight;
+      });
+      // Tags (top 5)
+      const topTags = Object.entries(tagCounts).sort((a,b) => b[1] - a[1]).slice(0, 5);
+      if(topTags.length > 0){
+        y += lineHeight;
+        doc.text('Top tags:', 10, y);
+        y += lineHeight;
+        topTags.forEach(([tag,count]) => {
+          doc.text(`${tag}: ${count}`, 14, y);
+          y += lineHeight;
+        });
+      }
+      // Extra spacing before listing the POIs. If near bottom of page, start a new page.
+      y += lineHeight * 2;
+      if(y > 250){
+        doc.addPage();
+        y = 10;
+      }
+      // Render each POI entry
+      for(const p of pois){
+        if(y > 260){ doc.addPage(); y = 10; }
+        doc.setFontSize(14);
+        doc.text(p.title || 'Untitled POI', 10, y);
+        y += lineHeight;
+        doc.setFontSize(10);
+        doc.text(`Category: ${labelOf('category', p.category)}`, 10, y);
+        y += lineHeight;
+        doc.text(`Type: ${labelOf('type', p.type)}`, 10, y);
+        y += lineHeight;
+        doc.text(`Urgency: ${labelOf('urgency', p.urgency)}`, 10, y);
+        y += lineHeight;
+        doc.text(`Location: ${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`, 10, y);
+        y += lineHeight;
+        // Include tags and free‑text comments in the report.  Tags are shown as
+        // a comma‑separated list; the comment records any descriptive notes.
+        if(p.tags && p.tags.length){
+          doc.text(`Tags: ${p.tags.join(', ')}`, 10, y);
+          y += lineHeight;
+        }
+        if(p.comment){
+          doc.text(`Comment: ${p.comment}`, 10, y);
+          y += lineHeight;
+        }
+        // Insert lifecycle status and feedback if available
+        if(p.status){ doc.text(`Status: ${labelOf('status', p.status)}`, 10, y); y += lineHeight; }
+        if(p.feedbackScore !== null && p.feedbackScore !== undefined){ doc.text(`Feedback score: ${p.feedbackScore}`, 10, y); y += lineHeight; }
+        if(p.feedbackComment){ doc.text(`Feedback comment: ${p.feedbackComment}`, 10, y); y += lineHeight; }
+        if(p.workshopDate){ doc.text(`Workshop date: ${p.workshopDate}`, 10, y); y += lineHeight; }
+        // Before image
+        let beforeData = null;
+        if(p.before && p.before.mode && p.before.mode !== 'none' && p.before.data){
+          if(p.before.mode === 'url'){
+            beforeData = await urlToDataURL(p.before.data);
+          }else{
+            beforeData = p.before.data;
+          }
+        }
+        // After image
+        let afterData = null;
+        if(p.after && p.after.mode && p.after.data){
+          if(p.after.mode === 'url'){
+            afterData = await urlToDataURL(p.after.data);
+          }else{
+            afterData = p.after.data;
+          }
+        }
+        // Determine image placement sizes
+        const imgWidth = 80; // mm
+        const imgHeight = 50; // mm
+        if(beforeData){
+          doc.text('Before:', 10, y);
+          y += lineHeight;
+          try{ doc.addImage(beforeData, 'JPEG', 10, y, imgWidth, imgHeight); }catch{}
+          y += imgHeight + lineHeight;
+        }
+        if(afterData){
+          doc.text('After:', 10, y);
+          y += lineHeight;
+          try{ doc.addImage(afterData, 'JPEG', 10, y, imgWidth, imgHeight); }catch{}
+          y += imgHeight + lineHeight;
+        }
+        y += lineHeight;
+      }
+      doc.save('poi_report.pdf');
+    }catch(e){
+      // Fallback: generate a minimal PDF without images and prompt the user to
+      // download it. This fallback constructs a small PDF manually. Images are
+      // omitted in this mode because embedding binary JPEGs without a library
+      // requires significant additional code. A notice is included at the top
+      // of the PDF to explain the limitation.
+      const blob = buildSimplePDF(pois);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'poi_report.pdf';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 500);
+    }
+  }
+
+  // Build a very simple PDF containing text for each POI. This generator
+  // constructs the PDF syntax manually and is used when jsPDF cannot be loaded.
+  // It omits images but records the most important attributes for each POI.
+  function buildSimplePDF(pois){
+    // Escape parentheses and backslashes for PDF string literals.
+    const escapePDFString = (s) => String(s||'').replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)');
+    // Compose content stream: write each line at a decreasing Y position.
+    let content = 'BT\n/F1 11 Tf\n';
+    let y = 780; // Start near top of page (units: points; 72 points per inch)
+    for(const p of pois){
+      const lines = [];
+      lines.push(p.title || 'Untitled POI');
+      lines.push('Category: ' + labelOf('category', p.category));
+      lines.push('Type: ' + labelOf('type', p.type));
+      lines.push('Urgency: ' + labelOf('urgency', p.urgency));
+      lines.push('Location: ' + p.lat.toFixed(5) + ', ' + p.lon.toFixed(5));
+      if(p.tags && p.tags.length) lines.push('Tags: ' + (p.tags || []).join(', '));
+      if(p.comment) lines.push('Comment: ' + p.comment);
+      if(p.status) lines.push('Status: ' + labelOf('status', p.status));
+      if(p.feedbackScore !== null && p.feedbackScore !== undefined) lines.push('Feedback score: ' + p.feedbackScore);
+      if(p.feedbackComment) lines.push('Feedback comment: ' + p.feedbackComment);
+      if(p.workshopDate) lines.push('Workshop date: ' + p.workshopDate);
+      lines.push('');
+      for(const ln of lines){
+        // Each line is written using a text matrix to position it. Use 1 0 0 1 x y Tm
+        // to set the text location. Then output the string with Tj.
+        content += `1 0 0 1 50 ${y.toFixed(0)} Tm (${escapePDFString(ln)}) Tj\n`;
+        y -= 14;
+        // Start a new page if there is insufficient vertical space. We assume
+        // roughly 50 points of margin at the bottom. When triggered, insert
+        // page-breaking markers by finishing the current text object and
+        // resetting y. Because this fallback does not support multiple pages,
+        // we simply reset y when it goes too low.
+        if(y < 50){ y = 780; }
+      }
+    }
+    content += 'ET';
+    const contentLength = content.length;
+    // Build the PDF structure. We'll create six objects: root, pages, page,
+    // content, resources, and font. Offsets are computed dynamically. Use
+    // Windows-style line endings (\n) to keep offsets correct across
+    // platforms.
+    let pdf = '%PDF-1.4\n';
+    const offsets = [];
+    const push = (obj) => { offsets.push(pdf.length); pdf += obj; };
+    // 1 0 obj: catalog
+    push('1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n');
+    // 2 0 obj: pages
+    push('2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n');
+    // 3 0 obj: single page with resources and content stream
+    push('3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources 5 0 R >>\nendobj\n');
+    // 4 0 obj: content stream
+    push(`4 0 obj\n<< /Length ${contentLength} >>\nstream\n${content}\nendstream\nendobj\n`);
+    // 5 0 obj: resources (font dictionary)
+    push('5 0 obj\n<< /Font << /F1 6 0 R >> >>\nendobj\n');
+    // 6 0 obj: font (Helvetica)
+    push('6 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n');
+    // Cross reference table
+    const xrefStart = pdf.length;
+    pdf += 'xref\n0 7\n';
+    pdf += '0000000000 65535 f \n';
+    for(const off of offsets){
+      pdf += String(off).padStart(10, '0') + ' 00000 n \n';
+    }
+    // Trailer
+    pdf += 'trailer\n<< /Size 7 /Root 1 0 R >>\nstartxref\n' + xrefStart + '\n%%EOF';
+    return new Blob([pdf], { type:'application/pdf' });
+  }
+
+  // Init
+  refreshPOIMarkers();
+  renderList();
+  renderRight(null);
+  renderCompareStrip();
+})();
+</script>
+</body>
+</html>
