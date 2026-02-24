@@ -3,15 +3,6 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <!--
-    This site has been prepared for deployment on Cloudflare Pages.
-    If you would like to persist user‑generated POI data in Cloudflare
-    R2 object storage, provide a publicly accessible JSON file URL in
-    the R2_JSON_URL constant defined in the script below.  When set,
-    the app will load and save data to that URL using HTTP GET and
-    PUT requests.  See Cloudflare's tutorial on using R2 as static
-    asset storage with Pages for more information【527488307763416†L299-L352】.
-  -->
   <!-- Updated title reflecting a simpler, cleaner interface -->
   <title>Community POIs & Photos (Twekkelerveld)</title>
 
@@ -392,6 +383,98 @@
       font-size: 12px;
     }
 
+    /* Tag suggestions for functional/problem tags */
+    .tagSuggestions{
+      margin-top: 6px;
+      display:flex;
+      flex-wrap:wrap;
+      gap:6px;
+    }
+    .tagSuggestions .chip{
+      background: rgba(56,189,248,0.1);
+      border: 1px solid rgba(56,189,248,0.3);
+      border-radius: 999px;
+      padding: 6px 8px;
+      font-size:11px;
+      cursor:pointer;
+      color: var(--text-main);
+      user-select:none;
+    }
+    .tagSuggestions .chip:hover{
+      background: rgba(56,189,248,0.15);
+    }
+
+    /* Modal overlays for info and compare */
+    #infoModal, #compareModal{
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.6);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 20000;
+    }
+    .modalContent{
+      position: relative;
+      background: rgba(2,6,23,0.95);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      max-width: 90vw;
+      max-height: 90vh;
+      overflow-y: auto;
+      color: var(--text-main);
+      box-shadow: var(--shadow);
+    }
+    .modalContent h2{
+      margin-top:0;
+      font-size:16px;
+      font-weight:700;
+    }
+    .modalClose{
+      position:absolute;
+      top:12px;
+      right:16px;
+      cursor:pointer;
+      color: var(--text-muted);
+      font-size:18px;
+    }
+    /* Compare layout */
+    .compareTable{
+      width:100%;
+      display:grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+    }
+    .compareColumn{
+      background: rgba(15,23,42,0.75);
+      border: 1px solid rgba(148,163,184,.18);
+      border-radius: 12px;
+      padding: 12px;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+    .compareColumn h3{
+      margin:0;
+      font-size:14px;
+      font-weight:700;
+    }
+    .compareRowLabel{
+      font-size:11px;
+      color: var(--text-muted);
+    }
+    .compareRowValue{
+      font-size:12px;
+      font-weight:600;
+    }
+    .scoreInput{
+      width:100%;
+    }
+
     /* Analysis flow illustrating the recommended workflow for refining POIs. Each
        step is presented as a card with an icon and a short caption. */
     .analysisFlow{
@@ -498,6 +581,8 @@
           <button class="btn small ghost" id="btnZoom" disabled>Zoom</button>
           <button class="btn small secondary" id="btnOpenMaps" disabled>Maps</button>
           <button class="btn small secondary" id="btnOpenStreet" disabled>Street View</button>
+          <!-- Info button opens a modal explaining the fields -->
+          <button class="btn small secondary" id="btnInfo">Info</button>
         </div>
       </div>
 
@@ -512,16 +597,49 @@
   <!-- Compare strip: displays pinned POIs side by side. Hidden by default. -->
   <div id="compareStrip"></div>
 
+    <!-- Info modal: explains the meaning of common fields (type, status, urgency, tags, etc.) -->
+    <div id="infoModal">
+      <div class="modalContent">
+        <div class="modalClose" id="infoClose">✕</div>
+        <h2>Field definitions</h2>
+        <div class="rightHint" style="margin-bottom:10px;">
+          Use this guide to understand the various fields when creating or reviewing POIs.
+        </div>
+        <div style="font-size:12px; line-height:1.4;">
+          <p><b>Type / Intervention</b>: Describes the nature of the point of interest. A <b>Need</b> identifies a missing facility, a <b>Problem</b> highlights an issue, an <b>Idea</b> suggests a potential improvement, and <b>Existing (improve)</b> flags existing infrastructure that could be enhanced.</p>
+          <p><b>Category</b>: Groups the POI into a broad theme such as meeting places, play areas, benches, sports, walkability, parking or safety/lighting.</p>
+          <p><b>Urgency</b>: Indicates priority – <b>Low</b> means the issue is minor, <b>Medium</b> deserves attention soon, and <b>High</b> is critical.</p>
+          <p><b>Status</b>: Tracks progress. Items begin as <b>Captured</b>, may be <b>Shortlisted</b> for further discussion, move into the <b>Masterplan</b>, and finish as <b>Implemented</b>.</p>
+          <p><b>Tags</b>: Add descriptive keywords to help filter and find similar items. You can combine free‑text tags with the suggested problem tags provided when editing a POI.</p>
+          <p><b>Comment</b>: A freeform description or justification for the POI.</p>
+          <p><b>Feedback score/comment</b>: Use these fields to capture community sentiment (0–100) and qualitative feedback during reviews.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Compare modal: shows pinned POIs side by side for brainstorming and scoring -->
+    <div id="compareModal">
+      <div class="modalContent" style="width:95%; max-width:1100px;">
+        <div class="modalClose" id="compareClose">✕</div>
+        <h2>Compare pinned POIs</h2>
+        <div class="rightHint" style="margin-bottom:10px;">Review the key details of the pinned items side by side. You can assign a score (1–5) to each option.</div>
+        <div id="compareTable" class="compareTable"></div>
+        <div style="margin-top:12px; text-align:right;">
+          <button class="btn primary" id="compareSave">Save scores</button>
+        </div>
+      </div>
+    </div>
+
 <script>
 (() => {
-  // Provide the URL of a JSON file stored in Cloudflare R2 to enable
-  // remote persistence of POI data.  Leave this empty to use
-  // localStorage only.  Example:
-  // const R2_JSON_URL = "https://my-bucket.r2.dev/pois.json";
-  const R2_JSON_URL = "https://pub-16912885f8be44fa806b33ff6683887e.r2.dev";
   const STORE_KEY = "DT_SOCIAL_POIS_V1";
   const LAST_ENDPOINT_KEY = "DT_SOCIAL_OVERPASS_ENDPOINT";
   const COMMONS_API = "https://commons.wikimedia.org/w/api.php?origin=*";
+  // Base URL for assets hosted on Cloudflare R2. When deploying this site
+  // to R2/Workers, ensure all static files (images, data) are uploaded
+  // to the same bucket. Using an absolute path here allows the app to
+  // fetch assets directly from R2 regardless of the current origin.
+  const R2_BASE = "https://pub-16912885f8be44fa806b33ff6683887e.r2.dev";
 
   // Determine whether the page is in admin mode. Certain advanced
   // functionality (e.g. loading OSM data, exporting/importing GeoJSON) is
@@ -603,6 +721,22 @@
     { id: "implemented", label: "Implemented" }
   ];
 
+  // Suggested problem/hotspot tags provided by the supervisors. Users can click these to
+  // quickly add common issues to a POI. These tags are purely hints and can be
+  // combined with any free‑text tags. Ranges in metres have been omitted for brevity.
+  const PROBLEM_TAG_SUGGESTIONS = [
+    "bulky waste dumping",
+    "street litter",
+    "feeling unsafe",
+    "poorly maintained greenery",
+    "vermin infestation",
+    "illegal parking",
+    "youth loitering",
+    "drug users / drunks / addicts / homeless",
+    "vandalism",
+    "unsafe traffic"
+  ];
+
   // Minimal “solution templates” (image options fetched from Wikimedia Commons search)
   // Solution templates map a short identifier to a friendly label and an optional local image.
   // The "query" field is left for future remote lookups but the UI will prioritise the
@@ -610,13 +744,48 @@
   // directory so they can load reliably without network access. Feel free to replace
   // these image paths with your own assets.
   const SOLUTION_TEMPLATES = [
-    { id:"pocket-park", label:"Pocket park / small green", img: "pocket_park.png", query:"pocket park public space" },
-    { id:"playground-upgrade", label:"Playground upgrade", img: "playground_upgrade.png", query:"playground renovation public space" },
-    { id:"community-garden", label:"Community garden", img: "community_garden.png", query:"community garden urban" },
-    { id:"bench-shade", label:"Benches + shade", img: "pocket_park.png", query:"public bench shade trees" },
-    { id:"lighting-safety", label:"Lighting + safe crossing", img: "lighting_safety.png", query:"street lighting safe crossing" },
-    { id:"shared-space", label:"Shared space / multi-use", img: "shared_space.png", query:"shared space street design" },
-    { id:"permeable-parking", label:"Permeable parking + green", img: "permeable_parking.png", query:"permeable paving parking green" }
+    {
+      id: "pocket-park",
+      label: "Pocket park / small green",
+      img: R2_BASE + "/pocket_park.png",
+      query: "pocket park public space"
+    },
+    {
+      id: "playground-upgrade",
+      label: "Playground upgrade",
+      img: R2_BASE + "/playground_upgrade.png",
+      query: "playground renovation public space"
+    },
+    {
+      id: "community-garden",
+      label: "Community garden",
+      img: R2_BASE + "/community_garden.png",
+      query: "community garden urban"
+    },
+    {
+      id: "bench-shade",
+      label: "Benches + shade",
+      img: R2_BASE + "/pocket_park.png",
+      query: "public bench shade trees"
+    },
+    {
+      id: "lighting-safety",
+      label: "Lighting + safe crossing",
+      img: R2_BASE + "/lighting_safety.png",
+      query: "street lighting safe crossing"
+    },
+    {
+      id: "shared-space",
+      label: "Shared space / multi-use",
+      img: R2_BASE + "/shared_space.png",
+      query: "shared space street design"
+    },
+    {
+      id: "permeable-parking",
+      label: "Permeable parking + green",
+      img: R2_BASE + "/permeable_parking.png",
+      query: "permeable paving parking green"
+    }
   ];
 
   const el = (id) => document.getElementById(id);
@@ -644,10 +813,13 @@
   let studyLayer = null;
   async function loadStudyBoundary(){
     const candidates = [
-      // Prefer a complete study area boundary derived from the GeoPackage.  If
-      // you convert your Twekkelerveld_utm32.gpkg to GeoJSON and place it in
-      // the data folder, the following two entries will match it.  Fallback
-      // options retain support for legacy file names.
+      // Attempt to load study area definitions from Cloudflare R2 first.  When
+      // hosting this app via R2, upload your GeoJSON files to the bucket root.
+      R2_BASE + "/Twekkelerveld_utm32.geojson",
+      R2_BASE + "/study_area.geojson",
+      R2_BASE + "/twekkelerveld_study_area.geojson",
+      // Fallback to local relative paths.  These entries support the app when
+      // running from a local directory or another hosting environment.
       "data/Twekkelerveld_utm32.geojson",
       "Twekkelerveld_utm32.geojson",
       "data/study_area.geojson",
@@ -690,28 +862,6 @@
   let addMode = false;
   let selected = null; // {kind:'poi'|'osm', id, latlng, data}
   let pois = loadPOIs();
-  // If an R2_JSON_URL is specified, fetch the POI array from that remote JSON
-  // after the page loads.  This fetch runs asynchronously and overwrites the
-  // locally loaded POIs.  The UI is then refreshed to display the
-  // remotely loaded data.  Errors are logged to the console and the app
-  // continues using localStorage if the request fails.
-  if (typeof R2_JSON_URL === 'string' && R2_JSON_URL) {
-    fetch(R2_JSON_URL)
-      .then(r => {
-        if (!r.ok) throw new Error('Remote data request failed');
-        return r.json();
-      })
-      .then(json => {
-        if (Array.isArray(json)) {
-          pois = json;
-          refreshPOIMarkers();
-          renderList();
-        }
-      })
-      .catch(err => {
-        console.error('Failed to load remote POIs', err);
-      });
-  }
   let osmPlaces = []; // normalized objects
   let photoMarkers = []; // {marker, url, title}
 
@@ -874,21 +1024,7 @@
     }catch{ return []; }
   }
   function savePOIs(){
-    // Persist to localStorage regardless of R2 usage
     localStorage.setItem(STORE_KEY, JSON.stringify(pois));
-    // If a remote R2 JSON file has been configured, attempt to PUT the
-    // updated POI array back to that endpoint.  This allows persisted
-    // storage outside the browser.  Note that R2 buckets must be
-    // configured to accept public PUT operations or the URL must be a
-    // pre‑signed URL with appropriate permissions.  Errors are
-    // intentionally ignored to avoid blocking the UI.
-    if (typeof R2_JSON_URL === 'string' && R2_JSON_URL) {
-      fetch(R2_JSON_URL, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(pois)
-      }).catch(() => {});
-    }
   }
 
   // Render markers
@@ -970,7 +1106,26 @@
       main.appendChild(h);
       main.appendChild(meta);
       main.appendChild(badges);
-
+      // Add a quick overview line showing the comment or tags for POIs. This
+      // helps users understand the context without opening each item. Only
+      // workshop POIs have comments and tags. We truncate long text to
+      // maintain readability.
+      if(it.kind === 'poi'){
+        const p = pois.find(x => x.id === it.id);
+        if(p){
+          const snippetDiv = document.createElement('div');
+          snippetDiv.className = 'cardMeta';
+          let parts = [];
+          if(p.comment) parts.push(p.comment);
+          if(p.tags && p.tags.length > 0) parts.push('Tags: ' + p.tags.join(', '));
+          let text = parts.join(' – ');
+          if(text.length > 80) text = text.slice(0, 77) + '…';
+          if(text){
+            snippetDiv.textContent = text;
+            main.appendChild(snippetDiv);
+          }
+        }
+      }
       card.appendChild(main);
       // If this is a workshop POI, include a small pin/unpin button for
       // comparison. The button does not trigger selection of the card itself.
@@ -1316,6 +1471,27 @@
 
     box.appendChild(l);
     box.appendChild(inp);
+    // Insert suggested problem tags as clickable chips. Clicking a chip
+    // adds it to the comma‑separated list if not already present.
+    if(Array.isArray(PROBLEM_TAG_SUGGESTIONS) && PROBLEM_TAG_SUGGESTIONS.length > 0){
+      const sugg = document.createElement('div');
+      sugg.className = 'tagSuggestions';
+      PROBLEM_TAG_SUGGESTIONS.forEach(tg => {
+        const chip = document.createElement('div');
+        chip.className = 'chip';
+        chip.textContent = tg;
+        chip.onclick = () => {
+          const current = inp.value.split(',').map(s=>s.trim()).filter(Boolean);
+          if(!current.includes(tg)){
+            current.push(tg);
+            inp.value = current.join(', ');
+            onChange(current);
+          }
+        };
+        sugg.appendChild(chip);
+      });
+      box.appendChild(sugg);
+    }
     return box;
   }
 
@@ -2180,6 +2356,17 @@
       item.appendChild(afterImg);
       strip.appendChild(item);
     });
+    // When at least two items are pinned, show a button to open the compare view.
+    if(pinned.length >= 2){
+      const cmpBtn = document.createElement('button');
+      cmpBtn.className = 'btn small primary';
+      cmpBtn.textContent = 'Compare';
+      cmpBtn.onclick = (e) => {
+        e.stopPropagation();
+        openCompareModal();
+      };
+      strip.appendChild(cmpBtn);
+    }
   }
 
   // Fetch a context summary for a given coordinate. The summary includes a
@@ -2252,6 +2439,64 @@
     const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ/2) * Math.sin(Δλ/2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
+  }
+
+  /*
+   * Display the comparison modal for pinned POIs. Builds a side‑by‑side view
+   * summarising key fields of each pinned item and providing a simple 1–5
+   * scoring control. The map and other UI remain visible behind the modal.
+   */
+  function openCompareModal(){
+    const modal = document.getElementById('compareModal');
+    if(!modal) return;
+    const table = document.getElementById('compareTable');
+    if(!table) return;
+    table.innerHTML = '';
+    // Build columns for each pinned workshop POI
+    const toCompare = pinned.map(id => pois.find(p => p.id === id)).filter(Boolean);
+    toCompare.forEach(p => {
+      const col = document.createElement('div');
+      col.className = 'compareColumn';
+      const title = document.createElement('h3');
+      title.textContent = p.title || 'POI';
+      col.appendChild(title);
+      // Helper to add a row
+      const addRow = (label, value) => {
+        const lab = document.createElement('div'); lab.className = 'compareRowLabel'; lab.textContent = label;
+        const val = document.createElement('div'); val.className = 'compareRowValue'; val.textContent = value;
+        col.appendChild(lab);
+        col.appendChild(val);
+      };
+      addRow('Type', labelOf('type', p.type));
+      addRow('Category', labelOf('category', p.category));
+      addRow('Urgency', labelOf('urgency', p.urgency));
+      addRow('Status', labelOf('status', p.status));
+      addRow('Tags', (p.tags && p.tags.length > 0) ? p.tags.join(', ') : '–');
+      addRow('Comment', p.comment ? p.comment : '–');
+      // Score selector
+      const scoreLabel = document.createElement('div'); scoreLabel.className = 'compareRowLabel'; scoreLabel.textContent = 'Score (1–5)';
+      const scoreSelect = document.createElement('select'); scoreSelect.className = 'scoreInput';
+      for(let i=1;i<=5;i++){
+        const opt = document.createElement('option'); opt.value = String(i); opt.textContent = String(i);
+        // Preselect based on feedbackScore if approximate
+        if(p.feedbackScore !== null && p.feedbackScore !== undefined){
+          const approx = Math.round((p.feedbackScore/100)*5);
+          if(approx === i) opt.selected = true;
+        }
+        scoreSelect.appendChild(opt);
+      }
+      scoreSelect.onchange = () => {
+        const v = parseInt(scoreSelect.value, 10);
+        p.feedbackScore = v * 20; // map to 0–100 scale
+        savePOIs();
+        // Re-render list to reflect updated feedbackScore
+        renderList();
+      };
+      col.appendChild(scoreLabel);
+      col.appendChild(scoreSelect);
+      table.appendChild(col);
+    });
+    modal.style.display = 'flex';
   }
 
   // Hook header buttons to selection
@@ -2514,6 +2759,16 @@
   renderList();
   renderRight(null);
   renderCompareStrip();
+  // Hook info modal button and close events
+  const infoBtn = el('btnInfo');
+  if(infoBtn){ infoBtn.onclick = () => { const m = document.getElementById('infoModal'); if(m) m.style.display = 'flex'; }; }
+  const infoClose = el('infoClose');
+  if(infoClose){ infoClose.onclick = () => { const m = document.getElementById('infoModal'); if(m) m.style.display = 'none'; }; }
+  // Hook compare modal close and save events
+  const compareClose = el('compareClose');
+  if(compareClose){ compareClose.onclick = () => { const m = document.getElementById('compareModal'); if(m) m.style.display = 'none'; }; }
+  const compareSave = el('compareSave');
+  if(compareSave){ compareSave.onclick = () => { const m = document.getElementById('compareModal'); if(m) m.style.display = 'none'; savePOIs(); renderList(); }; }
 })();
 </script>
 </body>
