@@ -1,0 +1,39 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Twekkelerveld (approx)",
+        "source": "demo bbox - replace with accurate boundary"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              6.8505,
+              52.2245
+            ],
+            [
+              6.8725,
+              52.2245
+            ],
+            [
+              6.8725,
+              52.237
+            ],
+            [
+              6.8505,
+              52.237
+            ],
+            [
+              6.8505,
+              52.2245
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}
