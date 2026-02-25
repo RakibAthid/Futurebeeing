@@ -514,7 +514,12 @@
       .app{ grid-template-columns: 1fr; grid-template-rows: auto 60vh auto; }
       #map{ height: 60vh; }
     }
-  </style>
+  /* Clipboard paste target highlight (click panel then Ctrl+V) */
+.photoBox.pasteActive{
+  outline: 2px solid rgba(99,102,241,.55);
+  outline-offset: 2px;
+}
+</style>
 </head>
 
 <body>
@@ -648,7 +653,64 @@
   const urlParams = new URLSearchParams(location.search);
   const isAdmin = urlParams.get("admin") === "1";
 
-  const CONFIG = {
+  
+
+
+// -------------------------------------------------------------------
+// Clipboard image paste routing
+// Pasting images onto a <div> only works reliably when that element has
+// focus. To support the expected "click panel then Ctrl+V" behaviour,
+// we track the last clicked image panel and route any image clipboard
+// paste event to it (capturing phase).
+let _activeImagePaste = null; // { box:HTMLElement, apply:(File)=>Promise<void> }
+
+function setActiveImagePaste(box, apply){
+  try{
+    if(_activeImagePaste?.box && _activeImagePaste.box !== box){
+      _activeImagePaste.box.classList.remove('pasteActive');
+    }
+    _activeImagePaste = { box, apply };
+    if(box){
+      box.classList.add('pasteActive');
+      // Make it focusable so native paste events can also hit it
+      if(typeof box.tabIndex !== 'number' || box.tabIndex < 0) box.tabIndex = 0;
+      try{ box.focus({ preventScroll:true }); }catch{ try{ box.focus(); }catch{} }
+    }
+  }catch{}
+}
+
+// Clear active highlight when clicking outside any image panel
+document.addEventListener('mousedown', (e) => {
+  if(!_activeImagePaste?.box) return;
+  if(_activeImagePaste.box.contains(e.target)) return;
+  _activeImagePaste.box.classList.remove('pasteActive');
+  _activeImagePaste = null;
+}, true);
+
+// Route image pastes to the active panel (capture so it works even if a
+// child control has focus).
+document.addEventListener('paste', async (e) => {
+  if(!_activeImagePaste?.apply) return;
+  const items = (e.clipboardData || window.clipboardData)?.items;
+  if(!items) return;
+  let file = null;
+  for(const item of items){
+    if(item?.type && item.type.startsWith('image/')){
+      file = item.getAsFile?.();
+      if(file) break;
+    }
+  }
+  if(!file) return; // allow normal text pastes
+  e.preventDefault();
+  e.stopPropagation();
+  try{
+    await _activeImagePaste.apply(file);
+  }catch(err){
+    console.warn('Clipboard paste failed', err);
+  }
+}, true);
+// -------------------------------------------------------------------
+const CONFIG = {
     studyArea: {
       name: "Twekkelerveld",
       center: [52.23064, 6.86004],
@@ -1753,31 +1815,17 @@
     actions.appendChild(bStreet);
     box.appendChild(actions);
     box.appendChild(up);
-    // Allow users to paste images directly from the clipboard into the "Before"
-    // panel. When an image is detected on the clipboard, convert it to a
-    // data URL and invoke the provided onChange callback as if the user
-    // had uploaded a file. This mimics the behaviour in many chat and
-    // productivity applications where you can Ctrl+V or right‑click paste
-    // screenshots without manually saving them first.
-    box.addEventListener('paste', async (e) => {
-      const items = (e.clipboardData || window.clipboardData)?.items;
-      if(!items) return;
-      for(const item of items){
-        if(item.type && item.type.startsWith('image/')){
-          const file = item.getAsFile();
-          if(file){
-            // Resize the pasted image on the client using the existing
-            // fileToDataURL helper. Use the same max dimension as manual
-            // uploads to avoid oversized photos bloating the JSON.
-            const dataUrl = await fileToDataURL(file, 1400);
-            onChange({ mode:'upload', data: dataUrl });
-            e.preventDefault();
-            break;
-          }
-        }
-      }
-    });
-    return box;
+
+// Enable click-then-paste behaviour for this panel.
+// (We route global clipboard paste events to the last clicked panel.)
+if(typeof box.tabIndex !== 'number' || box.tabIndex < 0) box.tabIndex = 0;
+box.addEventListener('mousedown', () => {
+  setActiveImagePaste(box, async (file) => {
+    const dataUrl = await fileToDataURL(file, 1400);
+    onChange({ mode:'upload', data: dataUrl });
+  });
+}, true);
+return box;
   }
 
   // Build an analysis flow section summarising the recommended workflow. This
@@ -1864,31 +1912,17 @@
     // initial gallery
     renderTemplateGallery(p.after?.data || sel.value, gallery, (imgUrl)=>{ p.after = { mode:"url", data: imgUrl }; savePOIs(); renderRight(selected); });
 
-    // Allow direct pasting of images into the "After" panel. When a user
-    // copies an image from another application (e.g. a design program or
-    // webpage) and pastes it here, we convert it to a data URL and assign
-    // it as a custom after image. This feature parallels the clipboard
-    // upload support in the "Before" panel and eliminates the need to
-    // download files manually.
-    box.addEventListener('paste', async (e) => {
-      const items = (e.clipboardData || window.clipboardData)?.items;
-      if(!items) return;
-      for(const item of items){
-        if(item.type && item.type.startsWith('image/')){
-          const file = item.getAsFile();
-          if(file){
-            const dataUrl = await fileToDataURL(file, 1400);
-            p.after = { mode:'upload', data: dataUrl };
-            savePOIs();
-            renderRight(selected);
-            e.preventDefault();
-            break;
-          }
-        }
-      }
-    });
-
-    return box;
+// Enable click-then-paste behaviour for this panel.
+if(typeof box.tabIndex !== 'number' || box.tabIndex < 0) box.tabIndex = 0;
+box.addEventListener('mousedown', () => {
+  setActiveImagePaste(box, async (file) => {
+    const dataUrl = await fileToDataURL(file, 1400);
+    p.after = { mode:'upload', data: dataUrl };
+    savePOIs();
+    renderRight(selected);
+  });
+}, true);
+return box;
   }
 
   async function renderTemplateGallery(templateId, galleryEl, onPick){
@@ -2575,6 +2609,37 @@
     }catch{
       return null;
     }
+
+
+// Normalize any image data URL to JPEG so jsPDF can embed it reliably.
+// This also flattens transparent PNGs onto a white background.
+async function normalizeImageDataForPDF(dataUrl, maxSide=1600){
+  if(!dataUrl) return null;
+  if(/^data:image\/jpeg/i.test(dataUrl)) return dataUrl;
+  return await new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      try{
+        const scale = Math.min(1, maxSide / Math.max(img.width || 1, img.height || 1));
+        const w = Math.max(1, Math.round((img.width || 1) * scale));
+        const h = Math.max(1, Math.round((img.height || 1) * scale));
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        const ctx = c.getContext('2d');
+        // White background for transparent images
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(c.toDataURL('image/jpeg', 0.85));
+      }catch{
+        resolve(dataUrl);
+      }
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
   }
 
   // Export PDF with list of POIs and before/after images
@@ -2718,21 +2783,33 @@
         doc.setLineWidth(0.1);
         doc.line(10, dy, 200, dy);
         dy += 7;
-        // Fetch image data
+
+        // Fetch image data (before/after). We only attempt to embed images when
+        // we have an actual image URL/data URL. If "After" is still in template
+        // mode, we resolve the template to an image first.
         let beforeData = null;
         if(p.before && p.before.mode && p.before.mode !== 'none' && p.before.data){
           if(p.before.mode === 'url'){
-            beforeData = await urlToDataURL(p.before.data);
-          }else{
-            beforeData = p.before.data;
+            const tmp = await urlToDataURL(p.before.data);
+            beforeData = await normalizeImageDataForPDF(tmp);
+          }else if(p.before.mode === 'upload'){
+            beforeData = await normalizeImageDataForPDF(p.before.data);
           }
         }
+
         let afterData = null;
         if(p.after && p.after.mode && p.after.data){
           if(p.after.mode === 'url'){
-            afterData = await urlToDataURL(p.after.data);
-          }else{
-            afterData = p.after.data;
+            const tmp = await urlToDataURL(p.after.data);
+            afterData = await normalizeImageDataForPDF(tmp);
+          }else if(p.after.mode === 'upload'){
+            afterData = await normalizeImageDataForPDF(p.after.data);
+          }else if(p.after.mode === 'template'){
+            const resolvedUrl = await fetchTemplateImage(p.after.data);
+            if(resolvedUrl){
+              const tmp = await urlToDataURL(resolvedUrl);
+              afterData = await normalizeImageDataForPDF(tmp);
+            }
           }
         }
         // Labels for images
@@ -2746,14 +2823,14 @@
         doc.setFont('helvetica', 'normal');
         if(beforeData){
           try{ doc.addImage(beforeData, 'JPEG', 10, dy, imgWidth, imgHeight); }
-          catch{}
+          catch{ doc.setFontSize(10); doc.text('Could not embed before image', 10, dy + 20); }
         }else{
           doc.setFontSize(10);
           doc.text('No before image available', 10, dy + 20);
         }
         if(afterData){
           try{ doc.addImage(afterData, 'JPEG', 110, dy, imgWidth, imgHeight); }
-          catch{}
+          catch{ doc.setFontSize(10); doc.text('Could not embed after image', 110, dy + 20); }
         }else{
           doc.setFontSize(10);
           doc.text('No after image available', 110, dy + 20);
