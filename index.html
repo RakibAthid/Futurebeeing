@@ -1753,6 +1753,30 @@
     actions.appendChild(bStreet);
     box.appendChild(actions);
     box.appendChild(up);
+    // Allow users to paste images directly from the clipboard into the "Before"
+    // panel. When an image is detected on the clipboard, convert it to a
+    // data URL and invoke the provided onChange callback as if the user
+    // had uploaded a file. This mimics the behaviour in many chat and
+    // productivity applications where you can Ctrl+V or right‑click paste
+    // screenshots without manually saving them first.
+    box.addEventListener('paste', async (e) => {
+      const items = (e.clipboardData || window.clipboardData)?.items;
+      if(!items) return;
+      for(const item of items){
+        if(item.type && item.type.startsWith('image/')){
+          const file = item.getAsFile();
+          if(file){
+            // Resize the pasted image on the client using the existing
+            // fileToDataURL helper. Use the same max dimension as manual
+            // uploads to avoid oversized photos bloating the JSON.
+            const dataUrl = await fileToDataURL(file, 1400);
+            onChange({ mode:'upload', data: dataUrl });
+            e.preventDefault();
+            break;
+          }
+        }
+      }
+    });
     return box;
   }
 
@@ -1839,6 +1863,30 @@
 
     // initial gallery
     renderTemplateGallery(p.after?.data || sel.value, gallery, (imgUrl)=>{ p.after = { mode:"url", data: imgUrl }; savePOIs(); renderRight(selected); });
+
+    // Allow direct pasting of images into the "After" panel. When a user
+    // copies an image from another application (e.g. a design program or
+    // webpage) and pastes it here, we convert it to a data URL and assign
+    // it as a custom after image. This feature parallels the clipboard
+    // upload support in the "Before" panel and eliminates the need to
+    // download files manually.
+    box.addEventListener('paste', async (e) => {
+      const items = (e.clipboardData || window.clipboardData)?.items;
+      if(!items) return;
+      for(const item of items){
+        if(item.type && item.type.startsWith('image/')){
+          const file = item.getAsFile();
+          if(file){
+            const dataUrl = await fileToDataURL(file, 1400);
+            p.after = { mode:'upload', data: dataUrl };
+            savePOIs();
+            renderRight(selected);
+            e.preventDefault();
+            break;
+          }
+        }
+      }
+    });
 
     return box;
   }
@@ -2536,17 +2584,39 @@
   // PDF containing only text using a minimal PDF generator defined below.
   async function exportPDF(){
     try{
-      // Attempt to use the jsPDF library if it has loaded. The library is
-      // delivered via CDN at the top of this file. When opened over HTTP it
-      // should be present on window.jspdf. If not, the fallback below will
-      // execute.
+      // Ensure the jsPDF library is available. If not, defer to the fallback
+      // implementation below.
       if(!window.jspdf || !window.jspdf.jsPDF) throw new Error('jsPDF unavailable');
       const { jsPDF } = window.jspdf;
-      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      let y = 10;
-      const lineHeight = 5;
-      // Insert a summary at the beginning of the PDF. We compute counts per
-      // category, urgency and status as well as the most frequent tags.
+      const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+
+      /*--------------------------------------------------------------------
+       * Cover page
+       * Create a professional cover with a title and generation date. The
+       * report is intended to be shared with stakeholders, so a polished
+       * introduction helps set the tone. Centre the title and subtitle on
+       * the page. Add a bottom border for a subtle design element.
+       */
+      doc.setFontSize(22);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Community POI Report', 105, 60, { align:'center' });
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'normal');
+      const dateStr = new Date().toLocaleDateString();
+      doc.text(`Generated on ${dateStr}`, 105, 70, { align:'center' });
+      // Decorative horizontal line
+      doc.setDrawColor(100);
+      doc.setLineWidth(0.2);
+      doc.line(40, 80, 170, 80);
+      doc.addPage();
+
+      /*--------------------------------------------------------------------
+       * Summary page
+       * Aggregate counts by category, urgency and status, and highlight the
+       * top tags. This provides a quick overview of the data before
+       * readers dive into individual entries.
+       */
+      // Compute counts
       const categoryCounts = {};
       const urgencyCounts = {};
       const statusCounts = {};
@@ -2557,82 +2627,98 @@
         statusCounts[p.status] = (statusCounts[p.status] || 0) + 1;
         (p.tags || []).forEach(t => { tagCounts[t] = (tagCounts[t] || 0) + 1; });
       }
-      // Write summary lines
-      doc.setFontSize(16);
-      doc.text('Summary', 10, y);
-      y += lineHeight * 2;
+      // Header
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Summary', 10, 20);
       doc.setFontSize(11);
-      // Categories
-      doc.text('By category:', 10, y);
-      y += lineHeight;
+      doc.setFont('helvetica', 'normal');
+      let sy = 30;
+      // Category counts
+      doc.setFont('helvetica', 'bold');
+      doc.text('By category:', 10, sy);
+      sy += 6;
+      doc.setFont('helvetica', 'normal');
       Object.entries(categoryCounts).sort((a,b) => b[1] - a[1]).forEach(([k,v]) => {
-        doc.text(`${labelOf('category', k)}: ${v}`, 14, y);
-        y += lineHeight;
+        doc.text(`${labelOf('category', k)}: ${v}`, 14, sy);
+        sy += 5;
       });
-      // Urgency
-      y += lineHeight;
-      doc.text('By urgency:', 10, y);
-      y += lineHeight;
+      sy += 5;
+      doc.setFont('helvetica', 'bold');
+      doc.text('By urgency:', 10, sy);
+      sy += 6;
+      doc.setFont('helvetica', 'normal');
       Object.entries(urgencyCounts).sort((a,b) => b[1] - a[1]).forEach(([k,v]) => {
-        doc.text(`${labelOf('urgency', k)}: ${v}`, 14, y);
-        y += lineHeight;
+        doc.text(`${labelOf('urgency', k)}: ${v}`, 14, sy);
+        sy += 5;
       });
-      // Status
-      y += lineHeight;
-      doc.text('By status:', 10, y);
-      y += lineHeight;
+      sy += 5;
+      doc.setFont('helvetica', 'bold');
+      doc.text('By status:', 10, sy);
+      sy += 6;
+      doc.setFont('helvetica', 'normal');
       Object.entries(statusCounts).sort((a,b) => b[1] - a[1]).forEach(([k,v]) => {
-        doc.text(`${labelOf('status', k)}: ${v}`, 14, y);
-        y += lineHeight;
+        doc.text(`${labelOf('status', k)}: ${v}`, 14, sy);
+        sy += 5;
       });
-      // Tags (top 5)
+      // Top tags (show up to five)
       const topTags = Object.entries(tagCounts).sort((a,b) => b[1] - a[1]).slice(0, 5);
-      if(topTags.length > 0){
-        y += lineHeight;
-        doc.text('Top tags:', 10, y);
-        y += lineHeight;
+      if(topTags.length){
+        sy += 5;
+        doc.setFont('helvetica', 'bold');
+        doc.text('Top tags:', 10, sy);
+        sy += 6;
+        doc.setFont('helvetica', 'normal');
         topTags.forEach(([tag,count]) => {
-          doc.text(`${tag}: ${count}`, 14, y);
-          y += lineHeight;
+          doc.text(`${tag}: ${count}`, 14, sy);
+          sy += 5;
         });
       }
-      // Extra spacing before listing the POIs. If near bottom of page, start a new page.
-      y += lineHeight * 2;
-      if(y > 250){
-        doc.addPage();
-        y = 10;
-      }
-      // Render each POI entry
-      for(const p of pois){
-        if(y > 260){ doc.addPage(); y = 10; }
-        doc.setFontSize(14);
-        doc.text(p.title || 'Untitled POI', 10, y);
-        y += lineHeight;
-        doc.setFontSize(10);
-        doc.text(`Category: ${labelOf('category', p.category)}`, 10, y);
-        y += lineHeight;
-        doc.text(`Type: ${labelOf('type', p.type)}`, 10, y);
-        y += lineHeight;
-        doc.text(`Urgency: ${labelOf('urgency', p.urgency)}`, 10, y);
-        y += lineHeight;
-        doc.text(`Location: ${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`, 10, y);
-        y += lineHeight;
-        // Include tags and free‑text comments in the report.  Tags are shown as
-        // a comma‑separated list; the comment records any descriptive notes.
-        if(p.tags && p.tags.length){
-          doc.text(`Tags: ${p.tags.join(', ')}`, 10, y);
-          y += lineHeight;
-        }
-        if(p.comment){
-          doc.text(`Comment: ${p.comment}`, 10, y);
-          y += lineHeight;
-        }
-        // Insert lifecycle status and feedback if available
-        if(p.status){ doc.text(`Status: ${labelOf('status', p.status)}`, 10, y); y += lineHeight; }
-        if(p.feedbackScore !== null && p.feedbackScore !== undefined){ doc.text(`Feedback score: ${p.feedbackScore}`, 10, y); y += lineHeight; }
-        if(p.feedbackComment){ doc.text(`Feedback comment: ${p.feedbackComment}`, 10, y); y += lineHeight; }
-        if(p.workshopDate){ doc.text(`Workshop date: ${p.workshopDate}`, 10, y); y += lineHeight; }
-        // Before image
+      doc.addPage();
+
+      /*--------------------------------------------------------------------
+       * Individual POI pages
+       * Each point of interest gets its own page with a clear header, the
+       * key attributes and a side‑by‑side comparison of before and after
+       * images. Lines separate sections for better readability. If
+       * necessary, any missing images are replaced with a placeholder note.
+       */
+      for(let i = 0; i < pois.length; i++){
+        const p = pois[i];
+        // Title
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(16);
+        doc.text(p.title || 'Untitled POI', 10, 20);
+        // Basic details
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(11);
+        let dy = 28;
+        const detailLines = [];
+        detailLines.push(`Category: ${labelOf('category', p.category)}`);
+        detailLines.push(`Type: ${labelOf('type', p.type)}`);
+        detailLines.push(`Urgency: ${labelOf('urgency', p.urgency)}`);
+        detailLines.push(`Location: ${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`);
+        if(p.tags && p.tags.length) detailLines.push(`Tags: ${p.tags.join(', ')}`);
+        if(p.comment) detailLines.push(`Comment: ${p.comment}`);
+        if(p.status) detailLines.push(`Status: ${labelOf('status', p.status)}`);
+        if(p.feedbackScore !== null && p.feedbackScore !== undefined) detailLines.push(`Feedback score: ${p.feedbackScore}`);
+        if(p.feedbackComment) detailLines.push(`Feedback comment: ${p.feedbackComment}`);
+        if(p.workshopDate) detailLines.push(`Workshop date: ${p.workshopDate}`);
+        detailLines.forEach(line => {
+          // Wrap long lines manually if they exceed 90 characters
+          const lines = doc.splitTextToSize(line, 190);
+          lines.forEach(l => {
+            doc.text(l, 10, dy);
+            dy += 5;
+          });
+        });
+        // Horizontal divider before images
+        dy += 3;
+        doc.setDrawColor(150);
+        doc.setLineWidth(0.1);
+        doc.line(10, dy, 200, dy);
+        dy += 7;
+        // Fetch image data
         let beforeData = null;
         if(p.before && p.before.mode && p.before.mode !== 'none' && p.before.data){
           if(p.before.mode === 'url'){
@@ -2641,7 +2727,6 @@
             beforeData = p.before.data;
           }
         }
-        // After image
         let afterData = null;
         if(p.after && p.after.mode && p.after.data){
           if(p.after.mode === 'url'){
@@ -2650,22 +2735,48 @@
             afterData = p.after.data;
           }
         }
-        // Determine image placement sizes
-        const imgWidth = 80; // mm
-        const imgHeight = 50; // mm
+        // Labels for images
+        doc.setFont('helvetica', 'bold');
+        doc.text('Before', 10, dy);
+        doc.text('After', 110, dy);
+        dy += 4;
+        // Images or placeholders
+        const imgWidth = 80;
+        const imgHeight = 50;
+        doc.setFont('helvetica', 'normal');
         if(beforeData){
-          doc.text('Before:', 10, y);
-          y += lineHeight;
-          try{ doc.addImage(beforeData, 'JPEG', 10, y, imgWidth, imgHeight); }catch{}
-          y += imgHeight + lineHeight;
+          try{ doc.addImage(beforeData, 'JPEG', 10, dy, imgWidth, imgHeight); }
+          catch{}
+        }else{
+          doc.setFontSize(10);
+          doc.text('No before image available', 10, dy + 20);
         }
         if(afterData){
-          doc.text('After:', 10, y);
-          y += lineHeight;
-          try{ doc.addImage(afterData, 'JPEG', 10, y, imgWidth, imgHeight); }catch{}
-          y += imgHeight + lineHeight;
+          try{ doc.addImage(afterData, 'JPEG', 110, dy, imgWidth, imgHeight); }
+          catch{}
+        }else{
+          doc.setFontSize(10);
+          doc.text('No after image available', 110, dy + 20);
         }
-        y += lineHeight;
+        // Draw a line below the images
+        dy += imgHeight + 8;
+        doc.setDrawColor(200);
+        doc.setLineWidth(0.05);
+        doc.line(10, dy, 200, dy);
+        // Insert a page break except after the last POI; page numbers
+        if(i < pois.length - 1){
+          doc.addPage();
+        }
+      }
+      // Add page numbers to the footer of every page. This must be done
+      // after all pages have been created; otherwise subsequent calls to
+      // addPage() reset the page counter.
+      const total = doc.getNumberOfPages();
+      for(let page = 1; page <= total; page++){
+        doc.setPage(page);
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'italic');
+        doc.text(`Page ${page} of ${total}`, 105, 290, { align:'center' });
       }
       doc.save('poi_report.pdf');
     }catch(e){
