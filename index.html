@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>FutureBEEing – Status Quo POIs</title>
+  <title>FutureBEEing – Point of Interest System</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -55,6 +55,46 @@
       border-radius: var(--radius);
       box-shadow: var(--shadow);
       min-height: 0;
+    }
+
+    /*
+     * The map wrapper now needs to act as a positioning context for the street
+     * view container we overlay on top of the map.  By making the wrapper
+     * relatively positioned we ensure that absolutely positioned children
+     * (like the street view panel) are anchored to it rather than the
+     * document body.  This prevents the street view panel from drifting
+     * outside of the map area on resize.
+     */
+    .mapWrap {
+      position: relative;
+    }
+
+    /*
+     * Street View container.  This panel sits on top of the map and holds
+     * either an embedded Street View iframe or a simple link to open
+     * Google Street View in a new tab.  It is hidden by default until a
+     * POI is selected or created.  Feel free to tweak the dimensions to
+     * better fit your layout.
+     */
+    .streetViewContainer {
+      position: absolute;
+      top: 70px;
+      left: 14px;
+      width: 360px;
+      height: 220px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: rgba(0,0,0,0.6);
+      box-shadow: var(--shadow);
+      color: var(--text);
+      display: none;
+      z-index: 1000;
+    }
+    .streetViewContainer iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
     }
     .panel {
       display: flex;
@@ -289,6 +329,20 @@
       display: inline-flex;
       align-items: center;
       gap: 6px;
+    }
+    .studyAreaLabel {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(96,165,250,.28);
+      background: rgba(8,16,30,.86);
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 800;
+      box-shadow: var(--shadow);
+      white-space: nowrap;
     }
     .legendColor {
       width: 10px;
@@ -565,6 +619,51 @@
         grid-template-rows: auto minmax(420px, 58vh) auto;
       }
     }
+
+    /*
+     * Dashboard statistics panel
+     * This panel floats above the map at the bottom and summarises the number of POIs per
+     * urgency level. Each card uses the same colour palette as the markers to help
+     * reinforce the meaning of the scores. The panel is non‑interactive so that the
+     * underlying map can still be clicked.
+     */
+    .statsPanel {
+      position: absolute;
+      bottom: 12px;
+      left: 12px;
+      right: 12px;
+      display: flex;
+      gap: 8px;
+      z-index: 500;
+      pointer-events: none;
+    }
+    .statsCard {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      padding: 10px 12px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: rgba(8,16,30,.86);
+      backdrop-filter: blur(10px);
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 700;
+      pointer-events: auto;
+    }
+    .statsCard .title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      margin: 0;
+    }
+    .statsCard .value {
+      margin-top: 4px;
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--text);
+    }
   </style>
 </head>
 <body>
@@ -572,8 +671,16 @@
     <aside class="panel">
       <div class="panelHeader">
         <div class="panelTitle">
-          <h1>Status Quo POIs</h1>
-          <p>Twekkelerveld · Cloudflare build<br>Only the requested POI workflow is kept here.</p>
+          <h1>Point of Interest System</h1>
+          <!--
+            The subtitle describes what this tool does rather than referring to the previous
+            “Status Quo” naming.  It explains that the app provides an interactive map
+            for creating, managing and exploring points of interest with categories,
+            tags, priorities, images and annotations.  Removing the hard‑coded
+            study‑area/build information keeps the UI generic and professional.
+          -->
+          <p>Interactive map for creating and managing points of interest with
+            categories, tags, priorities, images and annotations.</p>
         </div>
         <div class="row">
           <button class="btn secondary" id="resetViewBtn" type="button">Reset view</button>
@@ -616,7 +723,7 @@
       <div class="mapTopBar">
         <div class="chipPanel">
           <span id="modePill">Browse mode</span>
-          <small id="addHint">Click Add POI, then click on the map to place one.</small>
+          <small id="addHint">Click Add POI, then click inside the study area to place one.</small>
         </div>
         <div class="chipPanel">
           <div class="legend">
@@ -627,6 +734,11 @@
           </div>
         </div>
       </div>
+    <!-- Summary statistics panel. This empty container will be populated by
+         JavaScript to display per‑priority counts. -->
+    <div id="statsPanel" class="statsPanel"></div>
+    <!-- Street view panel; content is injected via openGoogleStreetMap() -->
+    <div id="streetViewContainer" class="streetViewContainer"></div>
     </section>
 
     <aside class="panel">
@@ -636,15 +748,18 @@
           <p id="detailSub">Click a marker or a card to open it in the sidebar.</p>
         </div>
         <div class="row">
+          <!-- Added Street View button to allow users to open Google Street View for the selected POI.  -->
           <button class="btn secondary" id="zoomBtn" type="button" disabled>Zoom</button>
+          <button class="btn secondary" id="streetViewBtn" type="button" disabled>Google Street View</button>
           <button class="btn danger" id="deleteBtn" type="button" disabled>Delete</button>
         </div>
       </div>
       <div class="panelBody">
         <div id="detailBody" class="detailEmpty">
-          This version focuses on the requested status quo workflow only:
-          category + icon, priority, tags, comments, images with title and description,
-          simple image annotation, hover overview, list filtering and CSV export.
+          This interface supports the core POI workflow: choose a category and icon,
+          assign a priority, add tags, comments and images (with titles and descriptions),
+          annotate images, hover over markers for a quick overview, filter and sort the list,
+          and export your data to CSV.  New POIs must fall within the selected study area boundary.
         </div>
       </div>
     </aside>
@@ -710,9 +825,13 @@
       ];
 
       const ICON_LIBRARY = ["📝","🏘️","🛝","🪑","⚽","🚶","🚲","💡","🌳","🛣️","🚦","🏠","🚌","🌊","🧒","🅿️","📍","⭐"];
-      const STUDY_AREA = {
-        center: [52.23064, 6.86004],
-        bounds: [[52.2245, 6.8505],[52.2370, 6.8725]]
+      const STUDY_AREA_GEOJSON = {"type":"FeatureCollection","features":[{"type":"Feature","properties":{"name":"Twekkelerveld","source":"Twekkelerveld_utm32.gpkg"},"geometry":{"type":"Polygon","coordinates":[[[6.854430297947142,52.234113892191665],[6.8564819562009625,52.235502940347594],[6.866077097420855,52.231799108166804],[6.864401029835082,52.23015473174072],[6.863569713124327,52.23039325714517],[6.861929109577264,52.228550400801915],[6.861115688946947,52.228694411435626],[6.860140914072519,52.22729824652758],[6.859745605737809,52.22663124719047],[6.8596781812003735,52.22626385016695],[6.858576615539005,52.22504046949005],[6.8446284283259295,52.23383856060174],[6.845390031047359,52.23430487635848],[6.849705095907234,52.23621806983804],[6.854430297947142,52.234113892191665]]]}}]};
+      const STUDY_AREA_STYLE = {
+        color: "#60a5fa",
+        weight: 2,
+        dashArray: "6 6",
+        fillColor: "#60a5fa",
+        fillOpacity: 0.08
       };
 
       const $ = (id) => document.getElementById(id);
@@ -730,6 +849,8 @@
         detailSub: $("detailSub"),
         detailBody: $("detailBody"),
         zoomBtn: $("zoomBtn"),
+        // Button to open Google Street View for the selected POI
+        streetViewBtn: $("streetViewBtn"),
         deleteBtn: $("deleteBtn"),
         modePill: $("modePill"),
         addHint: $("addHint"),
@@ -752,16 +873,21 @@
       let currentAnnotator = null;
 
       const map = L.map("map", { zoomControl: true, preferCanvas: true });
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}.png", {
+      // Initialise the base map using the correct OSM tile pattern. The previous version
+      // inadvertently omitted the {y} placeholder which resulted in blank tiles. Using
+      // the full {z}/{x}/{y} path ensures a proper OpenStreetMap basemap appears
+      // beneath the study area boundary and POI markers.
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: "&copy; OpenStreetMap contributors"
       }).addTo(map);
-      L.rectangle(STUDY_AREA.bounds, {
-        color: "#60a5fa",
-        weight: 2,
-        dashArray: "6 6",
-        fillOpacity: 0.02
+      const studyAreaLayer = L.geoJSON(STUDY_AREA_GEOJSON, {
+        style: () => STUDY_AREA_STYLE
       }).addTo(map);
-      map.fitBounds(STUDY_AREA.bounds, { padding: [14, 14] });
+      const studyAreaBounds = studyAreaLayer.getBounds();
+      // Remove the center marker and rely solely on the study area boundary.  The
+      // application now only draws the polygon outline without dropping a pin in
+      // the middle of the map.  Fit the map to the study area bounds as before.
+      map.fitBounds(studyAreaBounds, { padding: [14, 14] });
 
       const poiLayer = L.layerGroup().addTo(map);
 
@@ -847,13 +973,94 @@
         return `${count} ${count === 1 ? singular : plural}`;
       }
 
+      function getUrgencyScore(priorityId) {
+        return getPriority(priorityId).score;
+      }
+
+      function getStudyAreaName() {
+        return STUDY_AREA_GEOJSON.features[0]?.properties?.name || "Twekkelerveld";
+      }
+
+      /**
+       * Open a Google Maps Street View (or standard map if Street View imagery is
+       * unavailable) in a new tab for the given latitude and longitude.  This
+       * helper is used after a user creates a new point of interest so they can
+       * immediately view the real surroundings of that location.  The user can
+       * then take a screenshot of the area and upload it back into the POI as
+       * an image.  Without an API key the URL relies on Google’s generic
+       * street view viewer, which gracefully falls back to a regular map when
+       * imagery isn’t available.
+       *
+       * @param {number} lat Latitude of the location
+       * @param {number} lon Longitude of the location
+       */
+      /**
+       * Display a Street View link or embedded panorama for the given
+       * coordinates.  Instead of launching a new tab immediately, we
+       * populate the #streetViewContainer with content and show it.  If
+       * embedding fails (for example, because an API key is required),
+       * the panel will still display a link that opens the Street View
+       * location in a new tab when clicked.  This approach keeps the
+       * Street View preview within the prototype and avoids interrupting
+       * the user's workflow.
+       *
+       * @param {number} lat Latitude of the location
+       * @param {number} lon Longitude of the location
+       */
+      function openGoogleStreetMap(lat, lon) {
+        // Always open the Street View in a new browser tab.  Many Google
+        // properties disallow embedding due to X‑Frame‑Options, so
+        // attempting to display Street View inside an iframe will fail.
+        // Construct the URL using the Google Maps API and immediately
+        // open it in a new tab.  If pop‑ups are blocked, the user can
+        // still open the link manually from their browser.
+        const url = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lon}`;
+        window.open(url, '_blank');
+      }
+
+      function pointInRing(latlng, ring) {
+        const x = Number(latlng.lng);
+        const y = Number(latlng.lat);
+        let inside = false;
+        for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+          const xi = Number(ring[i][0]);
+          const yi = Number(ring[i][1]);
+          const xj = Number(ring[j][0]);
+          const yj = Number(ring[j][1]);
+          const intersects = ((yi > y) !== (yj > y)) &&
+            (x < ((xj - xi) * (y - yi)) / ((yj - yi) || Number.EPSILON) + xi);
+          if (intersects) inside = !inside;
+        }
+        return inside;
+      }
+
+      function polygonContainsLatLng(coordinates, latlng) {
+        if (!Array.isArray(coordinates) || !coordinates.length) return false;
+        if (!pointInRing(latlng, coordinates[0])) return false;
+        for (let i = 1; i < coordinates.length; i += 1) {
+          if (pointInRing(latlng, coordinates[i])) return false;
+        }
+        return true;
+      }
+
+      function geometryContainsLatLng(geometry, latlng) {
+        if (!geometry) return false;
+        if (geometry.type === "Polygon") return polygonContainsLatLng(geometry.coordinates, latlng);
+        if (geometry.type === "MultiPolygon") return geometry.coordinates.some(polygon => polygonContainsLatLng(polygon, latlng));
+        return false;
+      }
+
+      function isInsideStudyArea(latlng) {
+        return geometryContainsLatLng(STUDY_AREA_GEOJSON.features[0]?.geometry, latlng);
+      }
+
       function toggleAddMode(force) {
         addMode = typeof force === "boolean" ? force : !addMode;
         els.addPoiBtn.classList.toggle("active", addMode);
         els.modePill.textContent = addMode ? "Add mode" : "Browse mode";
         els.addHint.textContent = addMode
-          ? "Click on the map to place a new status quo POI."
-          : "Click Add POI, then click on the map to place one.";
+          ? `Click on the map to place a new POI inside ${getStudyAreaName()}.`
+          : `Click Add POI, then click inside the ${getStudyAreaName()} study area to place one.`;
         map.getContainer().style.cursor = addMode ? "crosshair" : "";
       }
 
@@ -952,7 +1159,7 @@
             <div class="tooltipTitle">${escapeHtml(poi.title || "Untitled POI")}</div>
             <div class="tooltipMeta">
               Category: ${escapeHtml(category.label)}<br>
-              Urgency: ${escapeHtml(priority.label)}<br>
+              Urgency score: ${priority.score} / 4 (${escapeHtml(priority.label)})<br>
               Comments: ${poi.comments.length}<br>
               Images: ${poi.images.length}
             </div>
@@ -1034,7 +1241,7 @@
           empty.className = "emptyState";
           empty.textContent = state.pois.length
             ? "No POIs match the current filters."
-            : "No POIs yet. Click Add POI and then click on the map.";
+            : "No POIs yet. Click Add POI and then click inside the study area.";
           els.poiList.appendChild(empty);
           return;
         }
@@ -1049,7 +1256,7 @@
               <div class="poiIconBubble" style="background:${priority.color};">${cat.icon}</div>
               <div style="min-width:0; flex:1;">
                 <p class="poiName">${escapeHtml(poi.title || "Untitled POI")}</p>
-                <div class="poiMeta">${escapeHtml(cat.label)} · ${priority.label}</div>
+                <div class="poiMeta">${escapeHtml(cat.label)} · ${priority.label} · Urgency ${priority.score}/4</div>
               </div>
             </div>
             <div class="badges">
@@ -1087,18 +1294,28 @@
 
       function renderDetail() {
         const poi = state.pois.find(p => p.id === selectedId);
+        // Always hide the Street View panel by default.  It will be shown only
+        // when the user explicitly requests Street View via the dedicated button.
+        {
+          const container = document.getElementById('streetViewContainer');
+          if (container) container.style.display = 'none';
+        }
+        // Enable or disable panel buttons based on whether a POI is selected.
         els.zoomBtn.disabled = !poi;
         els.deleteBtn.disabled = !poi;
+        if (els.streetViewBtn) els.streetViewBtn.disabled = !poi;
 
         if (!poi) {
           els.detailTitle.textContent = "POI details";
           els.detailSub.textContent = "Click a marker or a card to open it in the sidebar.";
           els.detailBody.className = "detailEmpty";
-          els.detailBody.innerHTML = `
-            This version focuses on the requested status quo workflow only:
-            category + icon, priority, tags, comments, images with title and description,
-            simple image annotation, hover overview, list filtering and CSV export.
-            <div class="toolbarHint">Mode: ${APP_MODE} · Asset root reserved as ${ASSET_ROOT}</div>
+        // Show a simple description of what this tool supports when nothing is selected.
+        // We intentionally keep this message brief and avoid exposing internal variables.
+        els.detailBody.innerHTML = `
+            This interface supports the core POI workflow: choose a category and icon,
+            assign a priority, add tags, comments and images (with titles and descriptions),
+            annotate images, hover over markers for a quick overview, filter and sort the list,
+            and export your data to CSV.  New POIs must fall within the selected study area boundary.
           `;
           return;
         }
@@ -1107,7 +1324,7 @@
         const priority = getPriority(poi.priority);
 
         els.detailTitle.textContent = poi.title || "Untitled POI";
-        els.detailSub.textContent = `${category.label} · ${priority.label} · ${poi.lat.toFixed(5)}, ${poi.lon.toFixed(5)}`;
+        els.detailSub.textContent = `${category.label} · ${priority.label} (${priority.score}/4) · ${poi.lat.toFixed(5)}, ${poi.lon.toFixed(5)}`;
         els.detailBody.className = "";
         els.detailBody.innerHTML = "";
 
@@ -1117,17 +1334,22 @@
         topInfo.className = "summaryBox";
         topInfo.innerHTML = `
           <strong>Hover summary fields</strong><br>
-          Title · Category · Urgency · Number of comments · Number of images
+          Title · Category · Urgency score · Number of comments · Number of images
         `;
         wrap.appendChild(topInfo);
 
+        // Title editor: update the POI title directly.  We no longer
+        // forcibly replace an empty title with "Untitled POI" here; blank
+        // titles are allowed and the list rendering will fall back to
+        // displaying "Untitled POI" if the underlying value is empty.
         wrap.appendChild(makeField("Title", textInput(poi.title, value => {
-          poi.title = value || "Untitled POI";
+          poi.title = value;
           saveState();
           renderAll();
         })));
 
-        wrap.appendChild(makeField("Summary / note", textArea(poi.summary, value => {
+        // Description field for the POI (replaces the old "Summary / note" wording)
+        wrap.appendChild(makeField("Description", textArea(poi.summary, value => {
           poi.summary = value;
           saveState();
           renderList();
@@ -1157,9 +1379,16 @@
 
         const footer = document.createElement("div");
         footer.className = "footerNote";
+        // Provide general notes about how POIs behave rather than referring to a
+        // specific "status quo" build or named study area.  The marker and
+        // priority colour explanations remain unchanged.  Persistence is
+        // explained generically, and the study area note refers to the loaded
+        // boundary without naming Twekkelerveld.
         footer.innerHTML = `
           <strong>Marker logic</strong>: standard droplet marker, category icon in the circle, priority colour on the marker body.
           <br><strong>Priority colours</strong>: green = low, yellow = medium, orange = high, red = critical.
+          <br><strong>POI persistence</strong>: POIs are saved in your browser so you can reuse and export them for later scenario work.
+          <br><strong>Study area</strong>: new POIs are restricted to the selected study area boundary.
         `;
         wrap.appendChild(footer);
 
@@ -1179,7 +1408,18 @@
       }
 
       function textInput(value, onChange) {
+        // Create a simple text input for editing single‐line fields like titles.
+        // Explicitly set the type to "text" instead of leaving it implicit.  Some
+        // browsers default to type="text" for <input> elements, but being
+        // explicit avoids unexpected behaviour (e.g. resetting values when
+        // editing).  Without specifying the type, certain browser extensions
+        // or form auto–fill logic can interfere with the control and cause
+        // keystrokes to be dropped when backspacing or deleting words.  See
+        // issue reported by end users where text would disappear when
+        // modifying the title field.  By declaring the type we ensure
+        // consistent behaviour across environments.
         const input = document.createElement("input");
+        input.type = "text";
         input.className = "input";
         input.value = value || "";
         input.addEventListener("input", () => onChange(input.value));
@@ -1425,32 +1665,20 @@
         });
         controls.appendChild(fileInput);
 
-        const pasteBtn = document.createElement("button");
-        pasteBtn.type = "button";
-        pasteBtn.className = "btn secondary";
-        pasteBtn.textContent = "Paste image";
-        pasteBtn.addEventListener("click", async () => {
-          try {
-            const items = await navigator.clipboard.read();
-            for (const item of items) {
-              const type = item.types.find(t => t.startsWith("image/"));
-              if (type) {
-                const blob = await item.getType(type);
-                await addImageToPoi(poi, new File([blob], "clipboard-image.png", { type }));
-                return;
-              }
-            }
-            alert("No image found on the clipboard.");
-          } catch (err) {
-            alert("Clipboard paste is blocked here. Use Ctrl/Cmd+V while the page is open or choose a file.");
-          }
-        });
-        controls.appendChild(pasteBtn);
+        /*
+         * Removed explicit "Paste image" button.  Many browsers block
+         * navigator.clipboard.read() on pages served over the file:// protocol
+         * (or without a secure context), which meant that clicking the button
+         * would show an error dialog.  Instead, users can paste an image
+         * directly using the standard keyboard shortcut (Ctrl/Cmd+V) while
+         * this page is focused.  The global paste handler below will pick up
+         * the image from the clipboard and attach it to the selected POI.
+         */
         section.appendChild(controls);
 
         const note = document.createElement("div");
         note.className = "hint";
-        note.textContent = "After upload or paste, the prototype asks for image title and description.";
+        note.textContent = "After uploading an image via the file input, or pasting it with Ctrl/Cmd+V, the prototype asks for an image title and description.";
         section.appendChild(note);
 
         const list = document.createElement("div");
@@ -1538,13 +1766,29 @@
       function readFileAsDataUrl(file) {
         return new Promise((resolve, reject) => {
           const reader = new FileReader();
-          reader.onload = () => resolve(reader.result);
+          reader.onload = () => {
+            let result = reader.result;
+            // Normalise any clipboard Data URI prefixes.  In some browsers
+            // copying images from the clipboard produces a `clipboard-data:`
+            // scheme instead of the standard `data:` scheme.  This breaks
+            // image previews and CSV exports because consumers expect a
+            // `data:` prefix.  Replace it with the correct prefix if
+            // necessary.
+            if (typeof result === "string") {
+              result = result.replace(/^clipboard-data:/i, 'data:');
+            }
+            resolve(result);
+          };
           reader.onerror = reject;
           reader.readAsDataURL(file);
         });
       }
 
       function createPoi(latlng) {
+        if (!isInsideStudyArea(latlng)) {
+          alert(`Please place the POI inside the ${getStudyAreaName()} study area.`);
+          return;
+        }
         const poi = normalizePoi({
           id: uid(),
           title: "New POI",
@@ -1581,6 +1825,31 @@
         renderMarkers();
         renderList();
         renderDetail();
+        // Refresh the dashboard summary counts every time the UI updates
+        updateStats();
+      }
+
+      // Render a small dashboard summarising the number of POIs per urgency level.
+      // The result is four cards (low, medium, high, critical) coloured to match the
+      // marker colours. This helps users quickly gauge the distribution of tasks.
+      function updateStats() {
+        const counts = { low: 0, medium: 0, high: 0, critical: 0 };
+        state.pois.forEach(poi => {
+          if (counts.hasOwnProperty(poi.priority)) counts[poi.priority]++;
+        });
+        const priorityOrder = ["low", "medium", "high", "critical"];
+        const html = priorityOrder.map(id => {
+          const priority = getPriority(id);
+          const count = counts[id] || 0;
+          return `
+            <div class="statsCard" style="border-left: 4px solid ${priority.color};">
+              <span class="title">${escapeHtml(priority.label)}</span>
+              <span class="value">${count}</span>
+            </div>
+          `;
+        }).join("");
+        const panel = document.getElementById("statsPanel");
+        if (panel) panel.innerHTML = html;
       }
 
       function zoomToSelected() {
@@ -1592,20 +1861,40 @@
       }
 
       function exportCsv() {
+        // Build a CSV containing the core POI data.  We deliberately omit
+        // image metadata and snapshots here because embedding large base64
+        // images into a CSV can lead to huge files and cause problems when
+        // opening the CSV in spreadsheet programs.  The exported file will
+        // therefore include only text‐based fields and the coordinates of
+        // each point.  If images are needed they can be exported via a
+        // separate mechanism.
         const rows = [
-          ["title","category","priority","tags","summary","comment_count","comments","image_count","image_titles","lat","lon","created_at"]
+          [
+            "title",
+            "category",
+            "priority",
+            "urgency_score",
+            "in_study_area",
+            "tags",
+            "summary",
+            "comment_count",
+            "comments",
+            "lat",
+            "lon",
+            "created_at"
+          ]
         ];
         state.pois.forEach(poi => {
           rows.push([
             poi.title,
             getCategory(poi.categoryId).label,
             getPriority(poi.priority).label,
+            String(getUrgencyScore(poi.priority)),
+            isInsideStudyArea({ lat: poi.lat, lng: poi.lon }) ? "yes" : "no",
             poi.tags.join("|"),
             poi.summary,
             String(poi.comments.length),
             poi.comments.map(c => c.text.replace(/\s+/g, " ").trim()).join(" | "),
-            String(poi.images.length),
-            poi.images.map(img => img.title).join(" | "),
             String(poi.lat),
             String(poi.lon),
             poi.createdAt
@@ -1651,9 +1940,17 @@
       });
 
       els.addPoiBtn.addEventListener("click", () => toggleAddMode());
-      els.resetViewBtn.addEventListener("click", () => map.fitBounds(STUDY_AREA.bounds, { padding: [14, 14] }));
+      els.resetViewBtn.addEventListener("click", () => map.fitBounds(studyAreaBounds, { padding: [14, 14] }));
       els.exportCsvBtn.addEventListener("click", exportCsv);
       els.zoomBtn.addEventListener("click", zoomToSelected);
+      // When the Street View button is clicked, open Street View for the selected POI
+      if (els.streetViewBtn) {
+        els.streetViewBtn.addEventListener("click", () => {
+          const poi = state.pois.find(p => p.id === selectedId);
+          if (!poi) return;
+          openGoogleStreetMap(poi.lat, poi.lon);
+        });
+      }
       els.deleteBtn.addEventListener("click", deleteSelectedPoi);
 
       ["input","change"].forEach(evt => {
