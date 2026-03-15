@@ -3,2961 +3,1883 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <!-- Updated title reflecting a simpler, cleaner interface -->
-  <title>Community POIs & Photos (Twekkelerveld)</title>
+  <title>FutureBEEing – Status Quo POIs</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css" />
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
-
-  <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
-  <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
-
-  <!-- jsPDF library for PDF export -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha512-HoGy4MzZY1o5LZiN5N4dAJE1lghYzBL2cJlgKi/lLXKfxPTBlI+Y597TWwFQP4KTSHS1Iz4kh06Vc36RlWCEcg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-
   <style>
-    :root{
-      --bg-core:#020617;
-      --bg-card:#0f172a;
-      --bg-card2:#0b1224;
-      --text-main:#f8fafc;
-      --text-muted:#94a3b8;
-      --accent:#38bdf8;
-      --accent2:#a78bfa;
-      --border: rgba(148, 163, 184, 0.18);
-      --shadow: 0 14px 40px rgba(0,0,0,.35);
-      --radius: 16px;
+    :root {
+      --bg: #08101e;
+      --panel: #0f172a;
+      --panel-2: #101b32;
+      --panel-3: #14213d;
+      --text: #e5eefc;
+      --muted: #9fb1cf;
+      --line: rgba(159,177,207,.18);
+      --accent: #60a5fa;
+      --shadow: 0 18px 45px rgba(0,0,0,.35);
+      --green: #22c55e;
+      --yellow: #eab308;
+      --orange: #f97316;
+      --red: #ef4444;
+      --radius: 18px;
     }
-    *{ box-sizing:border-box; }
-    html,body{ height:100%; margin:0; font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; background: radial-gradient(circle at top, #1e293b 0, #020617 60%); color:var(--text-main); }
-    a{ color:var(--accent); text-decoration:none; }
-    a:hover{ text-decoration:underline; }
-
-    .app{
-      height:100%;
-      display:grid;
-      grid-template-columns: 340px 1fr 420px;
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(59,130,246,.14), transparent 35%),
+        radial-gradient(circle at bottom right, rgba(16,185,129,.10), transparent 30%),
+        var(--bg);
+      color: var(--text);
+    }
+    button, input, select, textarea {
+      font: inherit;
+    }
+    .app {
+      height: 100%;
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr) 390px;
       gap: 12px;
       padding: 12px;
     }
-    .panel{
-      background: linear-gradient(180deg, rgba(15,23,42,.9), rgba(2,6,23,.9));
-      border: 1px solid var(--border);
+    .panel, .mapWrap {
+      background: linear-gradient(180deg, rgba(15,23,42,.96), rgba(8,16,30,.96));
+      border: 1px solid var(--line);
       border-radius: var(--radius);
       box-shadow: var(--shadow);
-      overflow: hidden;
-      display:flex;
-      flex-direction:column;
-      min-height:0;
+      min-height: 0;
     }
-    .panelHeader{
-      padding: 14px 14px 10px 14px;
-      border-bottom: 1px solid var(--border);
-      display:flex;
-      align-items:flex-start;
-      justify-content:space-between;
-      gap: 10px;
-    }
-    .title{
-      display:flex;
-      flex-direction:column;
-      gap: 4px;
-    }
-    .title h1{
-      font-size: 14px;
-      letter-spacing:.2px;
-      margin:0;
-      font-weight:700;
-    }
-    .subtitle{
-      font-size: 12px;
-      color: var(--text-muted);
-      line-height:1.2;
-    }
-    .headerActions{
-      display:flex;
-      gap: 8px;
-      flex-wrap:wrap;
-      justify-content:flex-end;
-    }
-    .btn{
-      background: rgba(56,189,248,.14);
-      border: 1px solid rgba(56,189,248,.25);
-      color: var(--text-main);
-      padding: 8px 10px;
-      border-radius: 12px;
-      cursor:pointer;
-      font-size: 12px;
-      font-weight:600;
-      transition: transform .05s ease, background .15s ease;
-      user-select:none;
-    }
-    .btn:hover{ background: rgba(56,189,248,.20); }
-    .btn:active{ transform: translateY(1px); }
-    .btn.secondary{
-      background: rgba(148,163,184,.10);
-      border-color: rgba(148,163,184,.18);
-    }
-    .btn.danger{
-      background: rgba(239,68,68,.14);
-      border-color: rgba(239,68,68,.25);
-    }
-    .btn.primary{
-      background: rgba(56,189,248,.18);
-      border-color: rgba(56,189,248,.35);
-    }
-    .btn.small{ padding: 7px 9px; border-radius: 10px; font-weight:700; }
-    .btn.ghost{
-      background: transparent;
-      border-color: rgba(148,163,184,.18);
-    }
-
-    .body{
-      padding: 12px 14px 14px 14px;
-      overflow:auto;
-      min-height:0;
-    }
-    .section{ margin-bottom: 14px; }
-    .sectionTitle{
-      font-size: 12px;
-      color: var(--text-muted);
-      margin: 0 0 8px 0;
-      font-weight: 700;
-      letter-spacing:.2px;
-      text-transform: uppercase;
-    }
-
-    .row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-    .input, .textarea, .select{
-      width: 100%;
-      background: rgba(2,6,23,.55);
-      border: 1px solid rgba(148,163,184,.20);
-      color: var(--text-main);
-      border-radius: 12px;
-      padding: 10px 10px;
-      font-size: 13px;
-      outline:none;
-    }
-    .textarea{ min-height: 84px; resize: vertical; }
-    .input::placeholder, .textarea::placeholder{ color: rgba(148,163,184,.65); }
-
-    .chips{
-      display:flex;
-      gap:8px;
-      flex-wrap:wrap;
-    }
-    .chip{
-      padding: 8px 10px;
-      border-radius: 999px;
-      border: 1px solid rgba(148,163,184,.20);
-      background: rgba(148,163,184,.07);
-      color: var(--text-main);
-      font-size: 12px;
-      font-weight: 600;
-      cursor:pointer;
-      user-select:none;
-    }
-    .chip.active{
-      border-color: rgba(56,189,248,.35);
-      background: rgba(56,189,248,.14);
-    }
-
-    .toggles{
-      display:flex;
-      gap: 10px;
-      flex-wrap:wrap;
-      align-items:center;
-    }
-    .toggle{
-      display:flex;
-      align-items:center;
-      gap: 8px;
-      color: var(--text-muted);
-      font-size: 12px;
-      user-select:none;
-    }
-    .toggle input{ width: 16px; height:16px; accent-color: var(--accent); }
-
-    .list{
-      display:flex;
-      flex-direction:column;
-      gap: 10px;
-    }
-    .card{
-      background: rgba(15,23,42,.7);
-      border: 1px solid rgba(148,163,184,.18);
-      border-radius: 14px;
-      padding: 10px 10px;
-      display:flex;
-      gap: 10px;
-      cursor:pointer;
-    }
-    .badge{
-      font-size: 11px;
-      padding: 4px 8px;
-      border-radius: 999px;
-      border: 1px solid rgba(148,163,184,.20);
-      color: var(--text-muted);
-      width: fit-content;
-    }
-    .badge.workshop{ border-color: rgba(56,189,248,.30); color: rgba(56,189,248,.95); }
-    .badge.osm{ border-color: rgba(167,139,250,.35); color: rgba(167,139,250,.95); }
-    .badge.urgentLow{ border-color: rgba(148,163,184,.30); color: rgba(148,163,184,.95); }
-    .badge.urgentMed{ border-color: rgba(251,191,36,.35); color: rgba(251,191,36,.95); }
-    .badge.urgentHigh{ border-color: rgba(239,68,68,.35); color: rgba(239,68,68,.95); }
-
-    .cardMain{ flex:1; min-width:0; }
-    .cardTitle{ font-weight: 800; font-size: 13px; margin:0 0 4px 0; }
-    .cardMeta{ font-size: 12px; color: var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .rightHint{
-      font-size: 12px;
-      color: var(--text-muted);
-      line-height:1.35;
-      padding: 14px;
-    }
-
-    #map{
-      width:100%;
-      height:100%;
-      border-radius: var(--radius);
-      border: 1px solid var(--border);
-      box-shadow: var(--shadow);
-      overflow:hidden;
-    }
-
-    .pillRow{ display:flex; gap:8px; flex-wrap:wrap; margin-top:6px; }
-    .pill{
-      font-size: 11px;
-      padding: 6px 8px;
-      border-radius: 999px;
-      background: rgba(2,6,23,.55);
-      border: 1px solid rgba(148,163,184,.18);
-      color: var(--text-main);
-    }
-
-    .kv{
-      display:grid;
-      grid-template-columns: 120px 1fr;
-      gap: 8px 10px;
-      align-items:start;
-      font-size: 12px;
-      color: var(--text-muted);
-    }
-    .kv b{ color: var(--text-main); font-weight: 700; }
-    .mono{ font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace; }
-
-    .photosGrid{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-    }
-    .photoBox{
-      background: rgba(2,6,23,.55);
-      border: 1px solid rgba(148,163,184,.18);
-      border-radius: 14px;
-      padding: 10px;
-      overflow:hidden;
-      min-height: 170px;
-      display:flex;
-      flex-direction:column;
-      gap: 8px;
-    }
-    .photoBox h3{
-      margin:0;
-      font-size: 12px;
-      color: var(--text-muted);
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing:.2px;
-    }
-    .imgWrap{
-      width:100%;
-      height: 120px;
-      border-radius: 12px;
-      border: 1px solid rgba(148,163,184,.14);
-      overflow:hidden;
-      background: rgba(15,23,42,.55);
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      color: rgba(148,163,184,.7);
-      font-size: 12px;
-    }
-    .imgWrap img{ width:100%; height:100%; object-fit:cover; display:block; }
-    .imgActions{ display:flex; gap:8px; flex-wrap:wrap; }
-
-    .gallery{
-      display:grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
-    }
-    .thumb{
-      height: 78px;
-      border-radius: 12px;
-      overflow:hidden;
-      border: 1px solid rgba(148,163,184,.18);
-      background: rgba(15,23,42,.6);
-      cursor:pointer;
-      position:relative;
-    }
-    .thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
-    .thumb span{
-      position:absolute;
-      left:6px; bottom:6px;
-      font-size: 10px;
-      padding: 3px 6px;
-      border-radius: 999px;
-      background: rgba(2,6,23,.72);
-      border: 1px solid rgba(148,163,184,.18);
-      color: var(--text-main);
-      max-width: calc(100% - 12px);
-      overflow:hidden;
-      white-space:nowrap;
-      text-overflow:ellipsis;
-    }
-
-    .notice{
-      margin: 10px 14px 0 14px;
-      padding: 10px 12px;
-      border-radius: 14px;
-      background: rgba(251,191,36,.10);
-      border: 1px solid rgba(251,191,36,.18);
-      color: rgba(251,191,36,.95);
-      font-size: 12px;
-      display:none;
-    }
-    .notice.show{ display:block; }
-
-    /* Compare strip at the bottom for pinned POIs */
-    #compareStrip{
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: rgba(2,6,23,.92);
-      border-top: 1px solid var(--border);
-      padding: 8px;
-      display: none;
-      z-index: 10000;
-      overflow-x: auto;
-    }
-    #compareStrip .compareItem{
-      min-width: 180px;
-      background: rgba(15,23,42,.7);
-      border: 1px solid rgba(148,163,184,.18);
-      border-radius: 12px;
-      margin-right: 8px;
-      padding: 6px;
+    .panel {
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      overflow: hidden;
     }
-    #compareStrip .compareItem h4{
+    .panelHeader {
+      padding: 14px 16px 12px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .panelTitle {
+      min-width: 0;
+    }
+    .panelTitle h1 {
       margin: 0;
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: .2px;
+    }
+    .panelTitle p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .panelBody {
+      padding: 14px 16px 16px;
+      overflow: auto;
+      min-height: 0;
+    }
+    .section + .section {
+      margin-top: 16px;
+    }
+    .sectionLabel {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--muted);
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+    .row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .btn {
+      border: 1px solid rgba(96,165,250,.30);
+      background: rgba(96,165,250,.14);
+      color: var(--text);
+      border-radius: 12px;
+      padding: 9px 12px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 700;
+      transition: .15s ease;
+    }
+    .btn:hover {
+      background: rgba(96,165,250,.22);
+    }
+    .btn.secondary {
+      background: rgba(159,177,207,.08);
+      border-color: rgba(159,177,207,.20);
+    }
+    .btn.danger {
+      background: rgba(239,68,68,.12);
+      border-color: rgba(239,68,68,.28);
+    }
+    .btn.active {
+      box-shadow: inset 0 0 0 1px rgba(96,165,250,.55);
+      background: rgba(96,165,250,.22);
+    }
+    .input, .select, .textarea {
+      width: 100%;
+      border: 1px solid rgba(159,177,207,.18);
+      background: rgba(8,16,30,.70);
+      color: var(--text);
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 13px;
+      outline: none;
+    }
+    .textarea {
+      min-height: 86px;
+      resize: vertical;
+      line-height: 1.45;
+    }
+    .hint {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    .filterGrid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .poiCard {
+      border: 1px solid rgba(159,177,207,.14);
+      background: rgba(20,33,61,.55);
+      border-radius: 16px;
+      padding: 10px 12px;
+      cursor: pointer;
+      transition: .15s ease;
+    }
+    .poiCard:hover {
+      transform: translateY(-1px);
+      border-color: rgba(96,165,250,.28);
+    }
+    .poiCard.active {
+      border-color: rgba(96,165,250,.48);
+      box-shadow: inset 0 0 0 1px rgba(96,165,250,.38);
+    }
+    .poiCard.hovered {
+      border-color: rgba(52,211,153,.58);
+      box-shadow: 0 0 0 1px rgba(52,211,153,.32);
+    }
+    .poiHead {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .poiIconBubble {
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      font-size: 16px;
+      color: #fff;
+      flex: 0 0 auto;
+      box-shadow: inset 0 0 0 2px rgba(255,255,255,.14);
+    }
+    .poiName {
+      font-size: 13px;
+      font-weight: 800;
+      margin: 0;
+      line-height: 1.2;
+    }
+    .poiMeta {
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .badges {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+    .badge {
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 999px;
+      padding: 5px 8px;
+      border: 1px solid rgba(159,177,207,.18);
+      background: rgba(8,16,30,.55);
+      color: var(--text);
+    }
+    .stats {
+      display: flex;
+      gap: 12px;
+      margin-top: 9px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .emptyState {
+      padding: 18px;
+      border: 1px dashed rgba(159,177,207,.20);
+      border-radius: 16px;
+      color: var(--muted);
+      text-align: center;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .mapWrap {
+      overflow: hidden;
+      position: relative;
+      min-height: 0;
+    }
+    #map {
+      width: 100%;
+      height: 100%;
+    }
+    .mapTopBar {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      right: 12px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      z-index: 500;
+      pointer-events: none;
+    }
+    .chipPanel {
+      pointer-events: auto;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding: 10px 12px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: rgba(8,16,30,.82);
+      backdrop-filter: blur(10px);
+      color: var(--text);
       font-size: 12px;
       font-weight: 700;
     }
-    #compareStrip .compareItem .meta{
-      font-size: 10px;
-      color: var(--text-muted);
+    .chipPanel small {
+      color: var(--muted);
+      font-weight: 600;
     }
-    #compareStrip .compareItem img{
-      width: 100%;
-      height: 60px;
-      border-radius: 8px;
-      object-fit: cover;
-      border: 1px solid rgba(148,163,184,.14);
+    .legend {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
     }
-    #compareStrip .compareItem .close{
-      align-self: flex-end;
+    .legendItem {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .legendColor {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+    }
+    .detailEmpty {
+      padding: 18px;
+      border: 1px dashed rgba(159,177,207,.18);
+      border-radius: 16px;
+      color: var(--muted);
+      line-height: 1.55;
+      font-size: 13px;
+    }
+    .summaryBox {
+      margin-top: 8px;
+      padding: 12px;
+      border-radius: 14px;
+      background: rgba(8,16,30,.52);
+      border: 1px solid rgba(159,177,207,.14);
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .iconPicker {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 8px;
+    }
+    .iconChoice {
+      height: 40px;
+      border-radius: 12px;
+      border: 1px solid rgba(159,177,207,.18);
+      background: rgba(8,16,30,.55);
+      display: grid;
+      place-items: center;
       cursor: pointer;
-      color: var(--text-muted);
+      font-size: 18px;
+    }
+    .iconChoice.active {
+      border-color: rgba(96,165,250,.46);
+      box-shadow: inset 0 0 0 1px rgba(96,165,250,.36);
+      background: rgba(96,165,250,.12);
+    }
+    .tagsWrap, .categoryChips {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 6px 10px;
+      background: rgba(8,16,30,.70);
+      border: 1px solid rgba(159,177,207,.16);
       font-size: 12px;
     }
-
-    /* Tag suggestions for functional/problem tags */
-    .tagSuggestions{
-      margin-top: 6px;
-      display:flex;
-      flex-wrap:wrap;
-      gap:6px;
+    .tag button {
+      all: unset;
+      cursor: pointer;
+      color: var(--muted);
+      font-weight: 800;
     }
-    .tagSuggestions .chip{
-      background: rgba(56,189,248,0.1);
-      border: 1px solid rgba(56,189,248,0.3);
+    .categoryChip {
       border-radius: 999px;
-      padding: 6px 8px;
-      font-size:11px;
-      cursor:pointer;
-      color: var(--text-main);
-      user-select:none;
+      padding: 7px 11px;
+      border: 1px solid rgba(159,177,207,.18);
+      background: rgba(8,16,30,.62);
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
     }
-    .tagSuggestions .chip:hover{
-      background: rgba(56,189,248,0.15);
+    .categoryChip.active {
+      border-color: rgba(96,165,250,.48);
+      background: rgba(96,165,250,.14);
     }
-
-    /* Modal overlays for info and compare */
-    #infoModal, #compareModal{
+    .commentItem, .imageCard {
+      border: 1px solid rgba(159,177,207,.14);
+      background: rgba(8,16,30,.55);
+      border-radius: 14px;
+      padding: 10px;
+    }
+    .commentItem + .commentItem,
+    .imageCard + .imageCard {
+      margin-top: 8px;
+    }
+    .commentHead, .imageHead {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .commentDate {
+      color: var(--muted);
+      font-size: 11px;
+    }
+    .imageThumb {
+      width: 100%;
+      height: 170px;
+      border-radius: 12px;
+      object-fit: cover;
+      border: 1px solid rgba(159,177,207,.14);
+      background: rgba(8,16,30,.70);
+    }
+    .annotationNote {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .markerWrap {
+      width: 34px;
+      height: 34px;
+      position: relative;
+      transform: translate(-4px, -2px);
+    }
+    .poiMarker {
+      width: 28px;
+      height: 28px;
+      border-radius: 50% 50% 50% 0;
+      transform: rotate(-45deg);
+      position: absolute;
+      left: 3px;
+      top: 1px;
+      box-shadow: 0 10px 18px rgba(0,0,0,.28);
+      border: 2px solid rgba(255,255,255,.92);
+    }
+    .poiMarkerInner {
+      position: absolute;
+      inset: 4px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 800;
+      transform: rotate(45deg);
+      background: rgba(255,255,255,.16);
+    }
+    .poiMarkerGlow {
+      position: absolute;
+      width: 42px;
+      height: 42px;
+      left: -4px;
+      top: -5px;
+      border-radius: 999px;
+      opacity: 0;
+      transition: .12s ease;
+      background: radial-gradient(circle, rgba(96,165,250,.28), transparent 70%);
+      pointer-events: none;
+    }
+    .markerWrap.hovered .poiMarkerGlow,
+    .markerWrap.selected .poiMarkerGlow {
+      opacity: 1;
+    }
+    .markerWrap.selected .poiMarker {
+      box-shadow: 0 0 0 3px rgba(96,165,250,.28), 0 10px 18px rgba(0,0,0,.34);
+    }
+    .leaflet-tooltip.poiTooltip {
+      background: rgba(8,16,30,.94);
+      color: var(--text);
+      border: 1px solid rgba(159,177,207,.18);
+      box-shadow: var(--shadow);
+      border-radius: 14px;
+      padding: 0;
+    }
+    .leaflet-tooltip.poiTooltip::before {
+      border-top-color: rgba(8,16,30,.94);
+    }
+    .tooltipBox {
+      min-width: 210px;
+      padding: 12px;
+    }
+    .tooltipTitle {
+      font-size: 13px;
+      font-weight: 800;
+      margin: 0 0 5px;
+    }
+    .tooltipMeta {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .toolbarHint {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(8,16,30,.70);
+      border: 1px solid rgba(159,177,207,.14);
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .modal {
       position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0,0,0,0.6);
+      inset: 0;
+      background: rgba(2,6,23,.70);
       display: none;
       align-items: center;
       justify-content: center;
-      z-index: 20000;
+      padding: 16px;
+      z-index: 3000;
     }
-    .modalContent{
-      position: relative;
-      background: rgba(2,6,23,0.95);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 20px 24px;
-      max-width: 90vw;
-      max-height: 90vh;
-      overflow-y: auto;
-      color: var(--text-main);
+    .modal.open {
+      display: flex;
+    }
+    .modalCard {
+      width: min(960px, 100%);
+      max-height: calc(100vh - 32px);
+      overflow: auto;
+      border-radius: 22px;
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(15,23,42,.98), rgba(8,16,30,.98));
       box-shadow: var(--shadow);
+      padding: 18px;
     }
-    .modalContent h2{
-      margin-top:0;
-      font-size:16px;
-      font-weight:700;
+    .modalHeader {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 14px;
     }
-    .modalClose{
-      position:absolute;
-      top:12px;
-      right:16px;
-      cursor:pointer;
-      color: var(--text-muted);
-      font-size:18px;
+    .modalHeader h2 {
+      margin: 0;
+      font-size: 18px;
     }
-    /* Compare layout */
-    .compareTable{
-      width:100%;
-      display:grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 14px;
-    }
-    .compareColumn{
-      background: rgba(15,23,42,0.75);
-      border: 1px solid rgba(148,163,184,.18);
-      border-radius: 12px;
+    .canvasWrap {
+      border-radius: 18px;
+      overflow: auto;
+      border: 1px solid rgba(159,177,207,.16);
+      background: rgba(8,16,30,.75);
       padding: 12px;
-      display:flex;
-      flex-direction:column;
-      gap:6px;
     }
-    .compareColumn h3{
-      margin:0;
-      font-size:14px;
-      font-weight:700;
-    }
-    .compareRowLabel{
-      font-size:11px;
-      color: var(--text-muted);
-    }
-    .compareRowValue{
-      font-size:12px;
-      font-weight:600;
-    }
-    .scoreInput{
-      width:100%;
-    }
-
-    /* Analysis flow illustrating the recommended workflow for refining POIs. Each
-       step is presented as a card with an icon and a short caption. */
-    .analysisFlow{
-      display:grid;
-      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-      gap: 8px;
-      margin-top: 10px;
-    }
-    .analysisStep{
-      background: rgba(2,6,23,.55);
-      border: 1px solid rgba(148,163,184,.18);
+    #annotatorCanvas {
+      display: block;
+      max-width: 100%;
       border-radius: 12px;
-      padding: 10px 8px;
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      justify-content:center;
-      text-align:center;
-      min-height: 80px;
+      background: #0b1120;
+      cursor: crosshair;
     }
-    .analysisStep .icon{
-      font-size: 20px;
-      margin-bottom: 4px;
+    .toolGroup {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
     }
-    .analysisStep strong{
-      font-size: 11px;
-      font-weight: 800;
-      margin-bottom: 2px;
+    .colorDot {
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      border: 2px solid rgba(255,255,255,.76);
+      cursor: pointer;
     }
-    .analysisStep small{
-      font-size: 10px;
-      color: var(--text-muted);
-      line-height: 1.2;
+    .metaGrid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
     }
-
-    @media (max-width: 1200px){
-      .app{ grid-template-columns: 1fr; grid-template-rows: auto 60vh auto; }
-      #map{ height: 60vh; }
+    .footerNote {
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(159,177,207,.12);
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
     }
-  /* Clipboard paste target highlight (click panel then Ctrl+V) */
-.photoBox.pasteActive{
-  outline: 2px solid rgba(99,102,241,.55);
-  outline-offset: 2px;
-}
-</style>
+    @media (max-width: 1180px) {
+      .app {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto minmax(420px, 58vh) auto;
+      }
+    }
+  </style>
 </head>
-
 <body>
   <div class="app">
-    <!-- LEFT -->
-    <aside class="panel" id="leftPanel">
+    <aside class="panel">
       <div class="panelHeader">
-        <div class="title">
-          <!-- Simplified headline; removed the unprofessional tagline -->
-          <h1>Community POIs & Photos</h1>
-          <div class="subtitle">Study area: Twekkelerveld (Enschede)</div>
+        <div class="panelTitle">
+          <h1>Status Quo POIs</h1>
+          <p>Twekkelerveld · Cloudflare build<br>Only the requested POI workflow is kept here.</p>
         </div>
-        <div class="headerActions">
-          <button class="btn small secondary" id="btnGoStudy">Go to area</button>
-          <!-- Download report button added -->
-          <button class="btn small secondary" id="btnExportPDF">Download report</button>
-          <button class="btn small" id="btnAddPOI">Add POI</button>
+        <div class="row">
+          <button class="btn secondary" id="resetViewBtn" type="button">Reset view</button>
+          <button class="btn" id="addPoiBtn" type="button">Add POI</button>
         </div>
       </div>
-
-      <div class="notice" id="noticeProtocol">
-        Commons requests may be blocked when opening this file directly. Please run via a local server (e.g., <span class="mono">http://localhost</span>).
-      </div>
-
-      <div class="body">
+      <div class="panelBody">
         <div class="section">
-          <div class="sectionTitle">Find</div>
-          <input class="input" id="q" placeholder="Search in POIs (name / tags / comment)" />
+          <label class="sectionLabel" for="searchInput">Search</label>
+          <input id="searchInput" class="input" placeholder="Search title, tags or notes">
         </div>
 
         <div class="section">
-          <div class="sectionTitle">Categories</div>
-          <div class="chips" id="categoryChips"></div>
-        </div>
-
-        <div class="section">
-          <div class="sectionTitle">Layers</div>
-          <div class="toggles">
-            <label class="toggle"><input type="checkbox" id="togStudy" checked> Study boundary</label>
-            <label class="toggle"><input type="checkbox" id="togPOI" checked> POIs</label>
+          <span class="sectionLabel">Filter</span>
+          <div class="filterGrid">
+            <select id="categoryFilter" class="select"></select>
+            <select id="priorityFilter" class="select"></select>
+            <select id="sortSelect" class="select" style="grid-column:1 / -1;"></select>
           </div>
+          <div class="hint">Filter and sort the POI overview by category and urgency.</div>
         </div>
 
-        <!-- Data export/import controls removed for simplicity -->
+        <div class="section">
+          <span class="sectionLabel">Quick category filter</span>
+          <div id="quickCategoryChips" class="categoryChips"></div>
+        </div>
 
         <div class="section">
-          <div class="sectionTitle">Places & workshop notes</div>
-          <div class="list" id="list"></div>
+          <div class="row" style="justify-content:space-between;">
+            <span class="sectionLabel" style="margin:0;">POI overview</span>
+            <button class="btn secondary" id="exportCsvBtn" type="button">Export CSV</button>
+          </div>
+          <div id="poiList" class="list"></div>
         </div>
       </div>
     </aside>
 
-    <!-- MAP -->
-    <main id="map"></main>
-
-    <!-- RIGHT -->
-    <aside class="panel" id="rightPanel">
-      <div class="panelHeader">
-        <div class="title">
-          <h1 id="selTitle">Select a POI or place</h1>
-          <div class="subtitle" id="selSub">Click a marker on the map or an item in the list.</div>
+    <section class="mapWrap">
+      <div id="map"></div>
+      <div class="mapTopBar">
+        <div class="chipPanel">
+          <span id="modePill">Browse mode</span>
+          <small id="addHint">Click Add POI, then click on the map to place one.</small>
         </div>
-        <div class="headerActions">
-          <button class="btn small ghost" id="btnZoom" disabled>Zoom</button>
-          <button class="btn small secondary" id="btnOpenMaps" disabled>Maps</button>
-          <button class="btn small secondary" id="btnOpenStreet" disabled>Street View</button>
-          <!-- Info button opens a modal explaining the fields -->
-          <button class="btn small secondary" id="btnInfo">Info</button>
+        <div class="chipPanel">
+          <div class="legend">
+            <span class="legendItem"><span class="legendColor" style="background:var(--green)"></span>Low</span>
+            <span class="legendItem"><span class="legendColor" style="background:var(--yellow)"></span>Medium</span>
+            <span class="legendItem"><span class="legendColor" style="background:var(--orange)"></span>High</span>
+            <span class="legendItem"><span class="legendColor" style="background:var(--red)"></span>Critical</span>
+          </div>
         </div>
       </div>
+    </section>
 
-      <div class="body" id="rightBody">
-        <div class="rightHint">
-          Use <b>Add POI</b> to capture a need, problem or idea. Add tags, urgency, photos and feedback. The map and list on the left help you explore your contributions.
+    <aside class="panel">
+      <div class="panelHeader">
+        <div class="panelTitle">
+          <h1 id="detailTitle">POI details</h1>
+          <p id="detailSub">Click a marker or a card to open it in the sidebar.</p>
+        </div>
+        <div class="row">
+          <button class="btn secondary" id="zoomBtn" type="button" disabled>Zoom</button>
+          <button class="btn danger" id="deleteBtn" type="button" disabled>Delete</button>
+        </div>
+      </div>
+      <div class="panelBody">
+        <div id="detailBody" class="detailEmpty">
+          This version focuses on the requested status quo workflow only:
+          category + icon, priority, tags, comments, images with title and description,
+          simple image annotation, hover overview, list filtering and CSV export.
         </div>
       </div>
     </aside>
   </div>
 
-  <!-- Compare strip: displays pinned POIs side by side. Hidden by default. -->
-  <div id="compareStrip"></div>
+  <div class="modal" id="annotatorModal">
+    <div class="modalCard">
+      <div class="modalHeader">
+        <div>
+          <h2>Annotate image</h2>
+          <div class="hint" style="margin-top:4px;">Tools: circles, arrows, text and basic colours.</div>
+        </div>
+        <button class="btn secondary" id="closeAnnotatorBtn" type="button">Close</button>
+      </div>
 
-    <!-- Info modal: explains the meaning of common fields (type, status, urgency, tags, etc.) -->
-    <div id="infoModal">
-      <div class="modalContent">
-        <div class="modalClose" id="infoClose">✕</div>
-        <h2>Field definitions</h2>
-        <div class="rightHint" style="margin-bottom:10px;">
-          Use this guide to understand the various fields when creating or reviewing POIs.
-        </div>
-        <div style="font-size:12px; line-height:1.4;">
-          <p><b>Type / Intervention</b>: Describes the nature of the point of interest. A <b>Need</b> identifies a missing facility, a <b>Problem</b> highlights an issue, an <b>Idea</b> suggests a potential improvement, and <b>Existing (improve)</b> flags existing infrastructure that could be enhanced.</p>
-          <p><b>Category</b>: Groups the POI into a broad theme such as meeting places, play areas, benches, sports, walkability, parking or safety/lighting.</p>
-          <p><b>Urgency</b>: Indicates priority – <b>Low</b> means the issue is minor, <b>Medium</b> deserves attention soon, and <b>High</b> is critical.</p>
-          <p><b>Status</b>: Tracks progress. Items begin as <b>Captured</b>, may be <b>Shortlisted</b> for further discussion, move into the <b>Masterplan</b>, and finish as <b>Implemented</b>.</p>
-          <p><b>Tags</b>: Add descriptive keywords to help filter and find similar items. You can combine free‑text tags with the suggested problem tags provided when editing a POI.</p>
-          <p><b>Comment</b>: A freeform description or justification for the POI.</p>
-          <p><b>Feedback score/comment</b>: Use these fields to capture community sentiment (0–100) and qualitative feedback during reviews.</p>
-        </div>
+      <div class="toolGroup">
+        <button class="btn secondary active" data-tool="circle" type="button">Circle</button>
+        <button class="btn secondary" data-tool="arrow" type="button">Arrow</button>
+        <button class="btn secondary" data-tool="text" type="button">Text</button>
+        <button class="btn secondary" id="clearAnnotationsBtn" type="button">Clear</button>
+      </div>
+
+      <div class="toolGroup" id="colorTools"></div>
+
+      <div class="canvasWrap">
+        <canvas id="annotatorCanvas"></canvas>
+      </div>
+
+      <div class="footerNote">
+        Click and drag for circles and arrows. With text selected, click once and type your label.
+        Save applies the annotation directly to the selected POI image.
+      </div>
+
+      <div class="row" style="justify-content:flex-end; margin-top:14px;">
+        <button class="btn secondary" id="cancelAnnotatorBtn" type="button">Cancel</button>
+        <button class="btn" id="saveAnnotatorBtn" type="button">Save annotation</button>
       </div>
     </div>
+  </div>
 
-    <!-- Compare modal: shows pinned POIs side by side for brainstorming and scoring -->
-    <div id="compareModal">
-      <div class="modalContent" style="width:95%; max-width:1100px;">
-        <div class="modalClose" id="compareClose">✕</div>
-        <h2>Compare pinned POIs</h2>
-        <div class="rightHint" style="margin-bottom:10px;">Review the key details of the pinned items side by side. You can assign a score (1–5) to each option.</div>
-        <div id="compareTable" class="compareTable"></div>
-        <div style="margin-top:12px; text-align:right;">
-          <button class="btn primary" id="compareSave">Save scores</button>
-        </div>
-      </div>
-    </div>
+  <script>
+    (() => {
+      const APP_MODE = "cloudflare";
+      const ASSET_ROOT = "https://pub-16912885f8be44fa806b33ff6683887e.r2.dev";
+      const STORAGE_KEY = "FB_POI_STATUS_QUO_CLOUDFLARE_V1";
 
-<script>
-(() => {
-  const STORE_KEY = "DT_SOCIAL_POIS_V1";
-  const LAST_ENDPOINT_KEY = "DT_SOCIAL_OVERPASS_ENDPOINT";
-  const COMMONS_API = "https://commons.wikimedia.org/w/api.php?origin=*";
-  // Base URL for assets hosted on Cloudflare R2. When deploying this site
-  // to R2/Workers, ensure all static files (images, data) are uploaded
-  // to the same bucket. Using an absolute path here allows the app to
-  // fetch assets directly from R2 regardless of the current origin.
-  const R2_BASE = "https://pub-16912885f8be44fa806b33ff6683887e.r2.dev";
+      const PRIORITIES = [
+        { id: "low", label: "Low", color: "#22c55e", score: 1 },
+        { id: "medium", label: "Medium", color: "#eab308", score: 2 },
+        { id: "high", label: "High", color: "#f97316", score: 3 },
+        { id: "critical", label: "Critical", color: "#ef4444", score: 4 }
+      ];
 
-  // Determine whether the page is in admin mode. Certain advanced
-  // functionality (e.g. loading OSM data, exporting/importing GeoJSON) is
-  // reserved for administrators and hidden from normal users. To enter
-  // admin mode append `?admin=1` to the URL.
-  const urlParams = new URLSearchParams(location.search);
-  const isAdmin = urlParams.get("admin") === "1";
+      const DEFAULT_CATEGORIES = [
+        { id: "note", label: "Note", icon: "📝" },
+        { id: "meeting", label: "Meeting / community", icon: "🏘️" },
+        { id: "playground", label: "Playground / youth", icon: "🛝" },
+        { id: "bench", label: "Benches / stay", icon: "🪑" },
+        { id: "sports", label: "Sports / activity", icon: "⚽" },
+        { id: "walkability", label: "Walkability / access", icon: "🚶" },
+        { id: "parking", label: "Parking / multi-use", icon: "🚲" },
+        { id: "safety", label: "Safety / lighting", icon: "💡" }
+      ];
 
-  
-
-
-// -------------------------------------------------------------------
-// Clipboard image paste routing
-// Pasting images onto a <div> only works reliably when that element has
-// focus. To support the expected "click panel then Ctrl+V" behaviour,
-// we track the last clicked image panel and route any image clipboard
-// paste event to it (capturing phase).
-let _activeImagePaste = null; // { box:HTMLElement, apply:(File)=>Promise<void> }
-
-function setActiveImagePaste(box, apply){
-  try{
-    if(_activeImagePaste?.box && _activeImagePaste.box !== box){
-      _activeImagePaste.box.classList.remove('pasteActive');
-    }
-    _activeImagePaste = { box, apply };
-    if(box){
-      box.classList.add('pasteActive');
-      // Make it focusable so native paste events can also hit it
-      if(typeof box.tabIndex !== 'number' || box.tabIndex < 0) box.tabIndex = 0;
-      try{ box.focus({ preventScroll:true }); }catch{ try{ box.focus(); }catch{} }
-    }
-  }catch{}
-}
-
-// Clear active highlight when clicking outside any image panel
-document.addEventListener('mousedown', (e) => {
-  if(!_activeImagePaste?.box) return;
-  if(_activeImagePaste.box.contains(e.target)) return;
-  _activeImagePaste.box.classList.remove('pasteActive');
-  _activeImagePaste = null;
-}, true);
-
-// Route image pastes to the active panel (capture so it works even if a
-// child control has focus).
-document.addEventListener('paste', async (e) => {
-  if(!_activeImagePaste?.apply) return;
-  const items = (e.clipboardData || window.clipboardData)?.items;
-  if(!items) return;
-  let file = null;
-  for(const item of items){
-    if(item?.type && item.type.startsWith('image/')){
-      file = item.getAsFile?.();
-      if(file) break;
-    }
-  }
-  if(!file) return; // allow normal text pastes
-  e.preventDefault();
-  e.stopPropagation();
-  try{
-    await _activeImagePaste.apply(file);
-  }catch(err){
-    console.warn('Clipboard paste failed', err);
-  }
-}, true);
-// -------------------------------------------------------------------
-const CONFIG = {
-    studyArea: {
-      name: "Twekkelerveld",
-      center: [52.23064, 6.86004],
-      bounds: [[52.2245, 6.8505],[52.2370, 6.8725]]
-    },
-    overpassEndpoints: [
-      "https://overpass-api.de/api/interpreter",
-      "https://z.overpass-api.de/api/interpreter",
-      "https://lz4.overpass-api.de/api/interpreter",
-      "https://overpass.kumi.systems/api/interpreter"
-    ],
-    minZoomForOverpass: 14
-  };
-
-  const CATEGORY_PRESETS = [
-    { id:"meeting", label:"Meeting / community", osm: [
-      ["amenity","community_centre"],
-      ["amenity","social_facility"],
-      ["amenity","library"]
-    ]},
-    { id:"play", label:"Playground / youth", osm: [
-      ["leisure","playground"],
-      ["amenity","kindergarten"],
-      ["amenity","school"]
-    ]},
-    { id:"benches", label:"Benches / stay", osm: [
-      ["amenity","bench"],
-      ["amenity","shelter"],
-      ["tourism","picnic_site"]
-    ]},
-    { id:"sports", label:"Sports / activity", osm: [
-      ["leisure","pitch"],
-      ["leisure","sports_centre"],
-      ["leisure","fitness_station"]
-    ]},
-    { id:"walk", label:"Walkability / access", osm: [
-      ["highway","crossing"],
-      ["traffic_calming","*"]
-    ]},
-    { id:"parking", label:"Parking / multi-use", osm: [
-      ["amenity","parking"],
-      ["amenity","bicycle_parking"]
-    ]},
-    { id:"safety", label:"Safety / lighting", osm: [
-      ["highway","street_lamp"]
-    ]}
-  ];
-
-  const POI_TYPES = [
-    { id:"need", label:"Need" },
-    { id:"problem", label:"Problem" },
-    { id:"idea", label:"Idea" },
-    { id:"existing", label:"Existing (improve)" }
-  ];
-
-  const URGENCY = [
-    { id:"low", label:"Low" },
-    { id:"med", label:"Medium" },
-    { id:"high", label:"High" }
-  ];
-
-  // Lifecycle status options for the feedback loop. These mirror the stages
-  // discussed in the workshop: items start as “captured”, may be
-  // “shortlisted” for consideration, promoted to the masterplan, and finally
-  // marked as implemented. A friendly label accompanies each internal id.
-  const STATUS_OPTIONS = [
-    { id: "captured", label: "Captured" },
-    { id: "shortlisted", label: "Shortlisted" },
-    { id: "in_masterplan", label: "In masterplan" },
-    { id: "implemented", label: "Implemented" }
-  ];
-
-  // Suggested problem/hotspot tags provided by the supervisors. Users can click these to
-  // quickly add common issues to a POI. These tags are purely hints and can be
-  // combined with any free‑text tags. Ranges in metres have been omitted for brevity.
-  const PROBLEM_TAG_SUGGESTIONS = [
-    "bulky waste dumping",
-    "street litter",
-    "feeling unsafe",
-    "poorly maintained greenery",
-    "vermin infestation",
-    "illegal parking",
-    "youth loitering",
-    "drug users / drunks / addicts / homeless",
-    "vandalism",
-    "unsafe traffic"
-  ];
-
-  // Minimal “solution templates” (image options fetched from Wikimedia Commons search)
-  // Solution templates map a short identifier to a friendly label and an optional local image.
-  // The "query" field is left for future remote lookups but the UI will prioritise the
-  // "img" property if provided. Images are stored alongside this HTML file in the same
-  // directory so they can load reliably without network access. Feel free to replace
-  // these image paths with your own assets.
-  const SOLUTION_TEMPLATES = [
-    {
-      id: "pocket-park",
-      label: "Pocket park / small green",
-      img: R2_BASE + "/pocket_park.png",
-      query: "pocket park public space"
-    },
-    {
-      id: "playground-upgrade",
-      label: "Playground upgrade",
-      img: R2_BASE + "/playground_upgrade.png",
-      query: "playground renovation public space"
-    },
-    {
-      id: "community-garden",
-      label: "Community garden",
-      img: R2_BASE + "/community_garden.png",
-      query: "community garden urban"
-    },
-    {
-      id: "bench-shade",
-      label: "Benches + shade",
-      img: R2_BASE + "/pocket_park.png",
-      query: "public bench shade trees"
-    },
-    {
-      id: "lighting-safety",
-      label: "Lighting + safe crossing",
-      img: R2_BASE + "/lighting_safety.png",
-      query: "street lighting safe crossing"
-    },
-    {
-      id: "shared-space",
-      label: "Shared space / multi-use",
-      img: R2_BASE + "/shared_space.png",
-      query: "shared space street design"
-    },
-    {
-      id: "permeable-parking",
-      label: "Permeable parking + green",
-      img: R2_BASE + "/permeable_parking.png",
-      query: "permeable paving parking green"
-    }
-  ];
-
-  const el = (id) => document.getElementById(id);
-  const noticeProtocol = el("noticeProtocol");
-
-  if (location.protocol === "file:") noticeProtocol.classList.add("show");
-
-  // Map
-  const map = L.map("map", { zoomControl: true });
-  const osmTiles = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: '&copy; OpenStreetMap contributors'
-  }).addTo(map);
-
-  map.fitBounds(CONFIG.studyArea.bounds);
-
-  // Geocoder (search bar)
-  L.Control.geocoder({
-    defaultMarkGeocode: false,
-    placeholder: "Search address/place…"
-  }).on('markgeocode', function(e) {
-    map.fitBounds(e.geocode.bbox);
-  }).addTo(map);
-
-  // Study boundary
-  let studyLayer = null;
-  async function loadStudyBoundary(){
-    const candidates = [
-      // Attempt to load study area definitions from Cloudflare R2 first.  When
-      // hosting this app via R2, upload your GeoJSON files to the bucket root.
-      R2_BASE + "/Twekkelerveld_utm32.geojson",
-      R2_BASE + "/study_area.geojson",
-      R2_BASE + "/twekkelerveld_study_area.geojson",
-      // Fallback to local relative paths.  These entries support the app when
-      // running from a local directory or another hosting environment.
-      "data/Twekkelerveld_utm32.geojson",
-      "Twekkelerveld_utm32.geojson",
-      "data/study_area.geojson",
-      "data/twekkelerveld_study_area.geojson",
-      "twekkelerveld_study_area.geojson"
-    ];
-    for (const url of candidates){
-      try{
-        const r = await fetch(url, { cache: "no-store" });
-        if(!r.ok) continue;
-        const gj = await r.json();
-        studyLayer = L.geoJSON(gj, {
-          style: { color: "#38bdf8", weight: 2, dashArray: "6 6", fillOpacity: 0.06 }
-        }).addTo(map);
-        map.fitBounds(studyLayer.getBounds(), { padding:[10,10] });
-        return;
-      }catch(_e){}
-    }
-    studyLayer = L.rectangle(CONFIG.studyArea.bounds, {
-      color: "#38bdf8",
-      weight: 2,
-      dashArray: "6 6",
-      fillOpacity: 0.06
-    }).addTo(map);
-    map.fitBounds(CONFIG.studyArea.bounds, { padding:[10,10] });
-  }
-  loadStudyBoundary();
-
-// Marker clusters
-  const clusterOSM = L.markerClusterGroup({ showCoverageOnHover: false, disableClusteringAtZoom: 18 });
-  const clusterPOI = L.markerClusterGroup({ showCoverageOnHover: false, disableClusteringAtZoom: 18 });
-  const clusterPhotos = L.markerClusterGroup({ showCoverageOnHover: false, disableClusteringAtZoom: 18 });
-
-  map.addLayer(clusterOSM);
-  map.addLayer(clusterPOI);
-  map.addLayer(clusterPhotos);
-
-  // State
-  let selectedCategories = new Set(["meeting","play","benches","sports","parking"]);
-  let addMode = false;
-  let selected = null; // {kind:'poi'|'osm', id, latlng, data}
-  let pois = loadPOIs();
-  let osmPlaces = []; // normalized objects
-  let photoMarkers = []; // {marker, url, title}
-
-  // Pinned POIs for comparison. Users can pin up to four POIs for a
-  // side‑by‑side overview. The compare strip at the bottom of the page
-  // reflects the contents of this array.
-  let pinned = [];
-
-  // UI: chips
-  const chipsWrap = el("categoryChips");
-  CATEGORY_PRESETS.forEach(c => {
-    const d = document.createElement("div");
-    d.className = selectedCategories.has(c.id) ? "chip active" : "chip";
-    d.textContent = c.label;
-    d.onclick = () => {
-      if (selectedCategories.has(c.id)) { selectedCategories.delete(c.id); d.classList.remove("active"); }
-      else { selectedCategories.add(c.id); d.classList.add("active"); }
-      renderList();
-    };
-    chipsWrap.appendChild(d);
-  });
-
-  // Layer toggles
-  // Layer toggles (only study boundary and POIs remain)
-  const togStudyEl = el("togStudy");
-  if(togStudyEl){ togStudyEl.addEventListener("change", (e)=> {
-    if(!studyLayer) return; if(e.target.checked) map.addLayer(studyLayer); else map.removeLayer(studyLayer);
-  }); }
-  const togPOIEl = el("togPOI");
-  if(togPOIEl){ togPOIEl.addEventListener("change", (e)=> {
-    if(e.target.checked) map.addLayer(clusterPOI); else map.removeLayer(clusterPOI);
-  }); }
-
-  // Buttons
-  const btnGoStudy = el("btnGoStudy");
-  if(btnGoStudy){ btnGoStudy.onclick = () => { if(studyLayer) map.fitBounds(studyLayer.getBounds(), {padding:[10,10]}); else map.fitBounds(CONFIG.studyArea.bounds); }; }
-
-  const btnAddPOI = el("btnAddPOI");
-  if(btnAddPOI){ btnAddPOI.onclick = () => setAddMode(!addMode); }
-
-  // Removed OSM/data buttons; wrap in checks to avoid errors
-  const btnLoadOSM = el("btnLoadOSM");
-  if(btnLoadOSM){
-    if(!isAdmin){ btnLoadOSM.style.display = 'none'; }
-    else{ btnLoadOSM.onclick = () => loadOSMForView(); }
-  }
-  const btnExport = el("btnExport");
-  if(btnExport){
-    if(!isAdmin){ btnExport.style.display = 'none'; }
-    else{ btnExport.onclick = () => exportGeoJSON(); }
-  }
-  const btnImport = el("btnImport");
-  if(btnImport){
-    if(!isAdmin){ btnImport.style.display = 'none'; }
-    else{ btnImport.onclick = () => el("fileImport").click(); }
-  }
-  const fileImport = el("fileImport");
-  if(fileImport){ fileImport.addEventListener("change", handleImportFile); }
-  const btnClear = el("btnClear");
-  if(btnClear){
-    if(!isAdmin){ btnClear.style.display = 'none'; }
-    else{
-      btnClear.onclick = () => {
-        if (!confirm("Clear all workshop POIs saved in this browser?")) return;
-        pois = [];
-        savePOIs();
-        selected = null;
-        clusterPOI.clearLayers();
-        renderList();
-        renderRight(null);
+      const ICON_LIBRARY = ["📝","🏘️","🛝","🪑","⚽","🚶","🚲","💡","🌳","🛣️","🚦","🏠","🚌","🌊","🧒","🅿️","📍","⭐"];
+      const STUDY_AREA = {
+        center: [52.23064, 6.86004],
+        bounds: [[52.2245, 6.8505],[52.2370, 6.8725]]
       };
-    }
-  }
 
-  el("q").addEventListener("input", () => renderList());
+      const $ = (id) => document.getElementById(id);
+      const els = {
+        addPoiBtn: $("addPoiBtn"),
+        resetViewBtn: $("resetViewBtn"),
+        exportCsvBtn: $("exportCsvBtn"),
+        searchInput: $("searchInput"),
+        categoryFilter: $("categoryFilter"),
+        priorityFilter: $("priorityFilter"),
+        sortSelect: $("sortSelect"),
+        quickCategoryChips: $("quickCategoryChips"),
+        poiList: $("poiList"),
+        detailTitle: $("detailTitle"),
+        detailSub: $("detailSub"),
+        detailBody: $("detailBody"),
+        zoomBtn: $("zoomBtn"),
+        deleteBtn: $("deleteBtn"),
+        modePill: $("modePill"),
+        addHint: $("addHint"),
+        annotatorModal: $("annotatorModal"),
+        annotatorCanvas: $("annotatorCanvas"),
+        closeAnnotatorBtn: $("closeAnnotatorBtn"),
+        cancelAnnotatorBtn: $("cancelAnnotatorBtn"),
+        saveAnnotatorBtn: $("saveAnnotatorBtn"),
+        clearAnnotationsBtn: $("clearAnnotationsBtn"),
+        colorTools: $("colorTools")
+      };
 
-  el("btnZoom").onclick = () => { if(selected?.latlng) map.setView(selected.latlng, 18); };
-  el("btnOpenMaps").onclick = () => { if(selected?.latlng) openGoogleMaps(selected.latlng); };
-  el("btnOpenStreet").onclick = () => { if(selected?.latlng) openStreetView(selected.latlng); };
+      const state = loadState();
+      let addMode = false;
+      let selectedId = null;
+      let hoveredId = null;
+      let quickCategory = "all";
+      let markersById = new Map();
+      let listNodesById = new Map();
+      let currentAnnotator = null;
 
-  // Add mode
-  function setAddMode(on){
-    addMode = on;
-    el("btnAddPOI").textContent = on ? "Click map…" : "Add POI";
-    el("btnAddPOI").classList.toggle("primary", on);
-    map.getContainer().style.cursor = on ? "crosshair" : "";
-  }
+      const map = L.map("map", { zoomControl: true, preferCanvas: true });
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}.png", {
+        attribution: "&copy; OpenStreetMap contributors"
+      }).addTo(map);
+      L.rectangle(STUDY_AREA.bounds, {
+        color: "#60a5fa",
+        weight: 2,
+        dashArray: "6 6",
+        fillOpacity: 0.02
+      }).addTo(map);
+      map.fitBounds(STUDY_AREA.bounds, { padding: [14, 14] });
 
-  map.on("click", async (e) => {
-    if(!addMode) return;
-    const p = createPOI(e.latlng);
-    pois.unshift(p);
-    // Auto populate images (before & after)
-    try{ await autoPopulateImagesForPOI(p); }catch(_err){}
-    savePOIs();
-    setAddMode(false);
-    refreshPOIMarkers();
-    renderList();
-    selectPOI(p.id);
-  });
+      const poiLayer = L.layerGroup().addTo(map);
 
-  // Icons
-  function markerIcon(kind, urgency){
-    const color = kind === "osm" ? "#a78bfa" : (urgency === "high" ? "#ef4444" : urgency === "med" ? "#fbbf24" : "#38bdf8");
-    const html = `
-      <div style="
-        width:26px;height:26px;border-radius:10px;
-        background: rgba(2,6,23,.85);
-        border: 2px solid ${color};
-        box-shadow: 0 10px 22px rgba(0,0,0,.35);
-        display:flex;align-items:center;justify-content:center;
-      ">
-        <div style="width:8px;height:8px;border-radius:999px;background:${color};"></div>
-      </div>`;
-    return L.divIcon({ html, className:"", iconSize:[26,26], iconAnchor:[13,13] });
-  }
-
-  // POIs
-  function createPOI(latlng){
-    return {
-      id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2),
-      kind: "workshop",
-      type: "idea",
-      title: "New POI",
-      category: "meeting",
-      tags: [],
-      comment: "",
-      urgency: "low",
-      timeUse: { weekday:true, weekend:false, day:true, evening:false },
-      before: { mode:"none", data:null },
-      after: { mode:"template", data: "pocket-park" },
-      osmTags: {},
-      lat: +latlng.lat.toFixed(6),
-      lon: +latlng.lng.toFixed(6),
-      createdAt: new Date().toISOString(),
-      // Feedback loop fields
-      status: "captured",
-      feedbackScore: null,
-      feedbackComment: "",
-      workshopDate: ""
-    };
-  }
-
-  function loadPOIs(){
-    try{
-      const raw = localStorage.getItem(STORE_KEY);
-      if(!raw) return [];
-      const arr = JSON.parse(raw);
-      if(!Array.isArray(arr)) return [];
-      // Ensure newly added feedback fields exist on older POIs
-      return arr.map(p => {
-        if(p && typeof p === 'object'){
-          if(!p.status) p.status = 'captured';
-          if(p.feedbackScore === undefined) p.feedbackScore = null;
-          if(p.feedbackComment === undefined) p.feedbackComment = '';
-          if(p.workshopDate === undefined) p.workshopDate = '';
-        }
-        return p;
-      });
-    }catch{ return []; }
-  }
-  function savePOIs(){
-    localStorage.setItem(STORE_KEY, JSON.stringify(pois));
-  }
-
-  // Render markers
-  function refreshPOIMarkers(){
-    clusterPOI.clearLayers();
-    for(const p of pois){
-      const m = L.marker([p.lat, p.lon], { icon: markerIcon("poi", p.urgency) });
-      m.on("click", () => selectPOI(p.id));
-      clusterPOI.addLayer(m);
-    }
-  }
-  function refreshOSMMarkers(){
-    clusterOSM.clearLayers();
-    for(const f of osmPlaces){
-      const m = L.marker([f.lat, f.lon], { icon: markerIcon("osm") });
-      m.on("click", () => selectOSM(f.id));
-      clusterOSM.addLayer(m);
-    }
-  }
-
-  // List rendering
-  function renderList(){
-    const list = el("list");
-    list.innerHTML = "";
-
-    const query = (el("q").value || "").trim().toLowerCase();
-
-    const workshopItems = pois
-      .filter(p => selectedCategories.has(p.category))
-      .filter(p => matchesQuery(p, query))
-      .map(p => ({ kind:"poi", id:p.id, title:p.title, meta: `${labelOf("category", p.category)} · ${p.lat.toFixed(4)}, ${p.lon.toFixed(4)}`, urgency:p.urgency }));
-
-    const osmItems = osmPlaces
-      .filter(o => selectedCategories.has(o.category))
-      .filter(o => matchesQuery(o, query))
-      .map(o => ({ kind:"osm", id:o.id, title:o.title, meta: `${labelOf("category", o.category)} · ${o.lat.toFixed(4)}, ${o.lon.toFixed(4)}` }));
-
-    const all = [...workshopItems, ...osmItems].slice(0, 250);
-
-    if(all.length === 0){
-      const empty = document.createElement("div");
-      empty.className = "rightHint";
-      empty.textContent = "No items for the current filters. Try enabling more categories or adding POIs.";
-      list.appendChild(empty);
-      return;
-    }
-
-    for(const it of all){
-      const card = document.createElement("div");
-      card.className = "card";
-      card.onclick = () => it.kind === "poi" ? selectPOI(it.id) : selectOSM(it.id);
-
-      const main = document.createElement("div");
-      main.className = "cardMain";
-
-      const h = document.createElement("div");
-      h.className = "cardTitle";
-      h.textContent = it.title;
-
-      const meta = document.createElement("div");
-      meta.className = "cardMeta";
-      meta.textContent = it.meta;
-
-      const badges = document.createElement("div");
-      badges.className = "pillRow";
-
-      const b1 = document.createElement("div");
-      b1.className = "badge " + (it.kind === "poi" ? "workshop" : "osm");
-      b1.textContent = it.kind === "poi" ? "Workshop" : "OSM";
-      badges.appendChild(b1);
-
-      if(it.kind === "poi"){
-        const u = document.createElement("div");
-        u.className = "badge " + (it.urgency === "high" ? "urgentHigh" : it.urgency === "med" ? "urgentMed" : "urgentLow");
-        u.textContent = "Urgency: " + labelOf("urgency", it.urgency);
-        badges.appendChild(u);
-      }
-
-      main.appendChild(h);
-      main.appendChild(meta);
-      main.appendChild(badges);
-      // Add a quick overview line showing the comment or tags for POIs. This
-      // helps users understand the context without opening each item. Only
-      // workshop POIs have comments and tags. We truncate long text to
-      // maintain readability.
-      if(it.kind === 'poi'){
-        const p = pois.find(x => x.id === it.id);
-        if(p){
-          const snippetDiv = document.createElement('div');
-          snippetDiv.className = 'cardMeta';
-          let parts = [];
-          if(p.comment) parts.push(p.comment);
-          if(p.tags && p.tags.length > 0) parts.push('Tags: ' + p.tags.join(', '));
-          let text = parts.join(' – ');
-          if(text.length > 80) text = text.slice(0, 77) + '…';
-          if(text){
-            snippetDiv.textContent = text;
-            main.appendChild(snippetDiv);
+      function loadState() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            return {
+              categories: Array.isArray(parsed.categories) && parsed.categories.length ? parsed.categories : DEFAULT_CATEGORIES.slice(),
+              pois: Array.isArray(parsed.pois) ? parsed.pois.map(normalizePoi) : []
+            };
           }
+        } catch (err) {
+          console.warn("Could not load saved state", err);
         }
-      }
-      card.appendChild(main);
-      // If this is a workshop POI, include a small pin/unpin button for
-      // comparison. The button does not trigger selection of the card itself.
-      if(it.kind === 'poi'){
-        const pinBtn = document.createElement('button');
-        pinBtn.className = 'btn small secondary';
-        pinBtn.style.marginLeft = 'auto';
-        pinBtn.textContent = pinned.includes(it.id) ? 'Unpin' : 'Pin';
-        pinBtn.onclick = (e) => {
-          e.stopPropagation();
-          togglePin(it.kind, it.id);
+        return {
+          categories: DEFAULT_CATEGORIES.slice(),
+          pois: []
         };
-        card.appendChild(pinBtn);
       }
-      list.appendChild(card);
-    }
 
-    // Update compare strip display in case the pinned list changed or the
-    // number of visible items impacts its content. This call is safe even
-    // when no items are pinned.
-    renderCompareStrip();
-  }
-
-  function matchesQuery(obj, q){
-    if(!q) return true;
-    const text = [
-      obj.title,
-      obj.comment,
-      ...(obj.tags || []),
-      obj.category,
-      JSON.stringify(obj.osmTags || {})
-    ].join(" ").toLowerCase();
-    return text.includes(q);
-  }
-
-  function labelOf(kind, id){
-    if(kind === "category") return (CATEGORY_PRESETS.find(x=>x.id===id)?.label) || id;
-    if(kind === "urgency") return (URGENCY.find(x=>x.id===id)?.label) || id;
-    if(kind === "type") return (POI_TYPES.find(x=>x.id===id)?.label) || id;
-    if(kind === "template") return (SOLUTION_TEMPLATES.find(x=>x.id===id)?.label) || id;
-    if(kind === "status") return (STATUS_OPTIONS.find(x=>x.id===id)?.label) || id;
-    return id;
-  }
-
-  // Selection
-  function selectPOI(id){
-    const p = pois.find(x=>x.id===id);
-    if(!p) return;
-    selected = { kind:"poi", id, latlng: L.latLng(p.lat, p.lon), data:p };
-    renderRight(selected);
-    updateHeaderActions(true);
-    loadNearbyPhotos(p.lat, p.lon);
-  }
-  function selectOSM(id){
-    const o = osmPlaces.find(x=>x.id===id);
-    if(!o) return;
-    selected = { kind:"osm", id, latlng: L.latLng(o.lat, o.lon), data:o };
-    renderRight(selected);
-    updateHeaderActions(true);
-    loadNearbyPhotos(o.lat, o.lon);
-  }
-  function updateHeaderActions(has){
-    el("btnZoom").disabled = !has;
-    el("btnOpenMaps").disabled = !has;
-    el("btnOpenStreet").disabled = !has;
-  }
-
-  function renderRight(sel){
-    const body = el("rightBody");
-    body.innerHTML = "";
-    if(!sel){
-      el("selTitle").textContent = "Select a POI or place";
-      el("selSub").textContent = "Click a marker on the map or an item in the list.";
-      body.innerHTML = '<div class="rightHint">Use <b>Add POI</b> to capture a need/problem/idea. Add tags, urgency and photos.</div>';
-      updateHeaderActions(false);
-      return;
-    }
-
-    const isPOI = sel.kind === "poi";
-    const data = sel.data;
-
-    el("selTitle").textContent = data.title || (isPOI ? "Workshop POI" : "OSM place");
-    el("selSub").textContent = `${labelOf("category", data.category)} · ${sel.latlng.lat.toFixed(5)}, ${sel.latlng.lng.toFixed(5)}`;
-
-    if(isPOI){
-      body.appendChild(renderPOIEditor(data));
-      // Insert a context panel summarising the surrounding area. The panel
-      // initially shows a loading message which is replaced when the
-      // asynchronous fetch completes.
-      const ctxSec = document.createElement('div');
-      ctxSec.className = 'section';
-      const ctxTitle = document.createElement('div');
-      ctxTitle.className = 'sectionTitle';
-      ctxTitle.textContent = 'Context';
-      ctxSec.appendChild(ctxTitle);
-      const ctxHolder = document.createElement('div');
-      ctxHolder.className = 'rightHint';
-      ctxHolder.textContent = 'Loading…';
-      ctxSec.appendChild(ctxHolder);
-      body.appendChild(ctxSec);
-      // Kick off fetching of the context summary
-      fetchContext(data.lat, data.lon, ctxHolder);
-    }else{
-      body.appendChild(renderOSMDetails(data));
-    }
-
-    // Nearby photos
-    const sec = document.createElement("div");
-    sec.className = "section";
-    sec.innerHTML = '<div class="sectionTitle">Nearby photos (Wikimedia Commons)</div><div id="nearbyPhotos"><div class="rightHint">Loading…</div></div>';
-    body.appendChild(sec);
-  }
-
-  function renderPOIEditor(p){
-    const wrap = document.createElement("div");
-
-    // Basic
-    const s1 = document.createElement("div");
-    s1.className = "section";
-    s1.innerHTML = '<div class="sectionTitle">Workshop POI</div>';
-    s1.appendChild(fieldText("Title", p.title, (v)=>{ p.title=v; savePOIs(); renderList(); el("selTitle").textContent=v || "Workshop POI"; }));
-    s1.appendChild(fieldSelect("Type", POI_TYPES, p.type, (v)=>{ p.type=v; savePOIs(); }));
-    s1.appendChild(fieldSelect("Category", CATEGORY_PRESETS.map(c=>({id:c.id,label:c.label})), p.category, (v)=>{ p.category=v; savePOIs(); renderList(); el("selSub").textContent = `${labelOf("category", v)} · ${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`; }));
-    s1.appendChild(fieldSelect("Urgency", URGENCY, p.urgency, (v)=>{ p.urgency=v; savePOIs(); refreshPOIMarkers(); renderList(); }));
-    s1.appendChild(fieldTags("Tags", p.tags, (arr)=>{ p.tags=arr; savePOIs(); renderList(); }));
-    s1.appendChild(fieldTextarea("Comment", p.comment, (v)=>{ p.comment=v; savePOIs(); renderList(); }));
-    wrap.appendChild(s1);
-
-    // Links
-    const sLinks = document.createElement("div");
-    sLinks.className = "section";
-    sLinks.innerHTML = '<div class="sectionTitle">Links</div>';
-    const r = document.createElement("div");
-    r.className = "row";
-    const b1 = document.createElement("button");
-    b1.className = "btn secondary";
-    b1.textContent = "Open in OpenStreetMap";
-    b1.onclick = () => window.open(`https://www.openstreetmap.org/?mlat=${p.lat}&mlon=${p.lon}#map=18/${p.lat}/${p.lon}`, "_blank");
-    const b2 = document.createElement("button");
-    b2.className = "btn secondary";
-    b2.textContent = "Copy coordinates";
-    b2.onclick = async () => {
-      try{ await navigator.clipboard.writeText(`${p.lat}, ${p.lon}`); b2.textContent="Copied"; setTimeout(()=>b2.textContent="Copy coordinates", 900); }catch{}
-    };
-    r.appendChild(b1); r.appendChild(b2);
-    sLinks.appendChild(r);
-    wrap.appendChild(sLinks);
-
-    // Status & feedback
-    const sFb = document.createElement("div");
-    sFb.className = "section";
-    const fbTitle = document.createElement("div");
-    fbTitle.className = "sectionTitle";
-    fbTitle.textContent = "Status & Feedback";
-    sFb.appendChild(fbTitle);
-    // status select
-    sFb.appendChild(fieldSelect("Status", STATUS_OPTIONS, p.status, (v) => {
-      p.status = v;
-      savePOIs();
-    }));
-    // feedback score
-    sFb.appendChild(fieldNumber("Feedback score (0–100)", p.feedbackScore, 0, 100, (v) => {
-      p.feedbackScore = v;
-      savePOIs();
-    }));
-    // feedback comment
-    sFb.appendChild(fieldTextarea("Feedback comment", p.feedbackComment, (v) => {
-      p.feedbackComment = v;
-      savePOIs();
-    }));
-    // workshop/session date
-    sFb.appendChild(fieldDate("Workshop date", p.workshopDate, (v) => {
-      p.workshopDate = v;
-      savePOIs();
-    }));
-    // Provide context so that users understand what these fields mean.  This
-    // note explains each element of the status and feedback section.
-    const fbNote = document.createElement("div");
-    fbNote.className = "rightHint";
-    fbNote.style.marginTop = "8px";
-    fbNote.innerHTML =
-      '<b>Status</b> tracks the lifecycle of the POI (captured \u2192 shortlisted \u2192 in masterplan \u2192 implemented). ' +
-      '<b>Feedback score</b> is a 0–100 rating summarising community sentiment, and ' +
-      '<b>Feedback comment</b> captures any notes or suggestions.';
-    sFb.appendChild(fbNote);
-    wrap.appendChild(sFb);
-
-    // OSM tags section removed – tags are now entirely user-defined via the "Tags" field above.
-
-    // Photos
-    const s3 = document.createElement("div");
-    s3.className = "section";
-    s3.innerHTML = '<div class="sectionTitle">Photos</div>';
-    const grid = document.createElement("div");
-    grid.className = "photosGrid";
-    // Use custom beforePanel that falls back to a static map when empty.
-    grid.appendChild(beforePanel(p, (obj) => { p.before = obj; savePOIs(); renderRight(selected); }));
-    grid.appendChild(afterPanel(p));
-    s3.appendChild(grid);
-    wrap.appendChild(s3);
-
-    // Delete
-    const s4 = document.createElement("div");
-    s4.className = "section";
-    const del = document.createElement("button");
-    del.className = "btn danger";
-    del.textContent = "Delete POI";
-    del.onclick = () => {
-      if(!confirm("Delete this POI?")) return;
-      pois = pois.filter(x=>x.id!==p.id);
-      savePOIs();
-      selected = null;
-      refreshPOIMarkers();
-      renderList();
-      renderRight(null);
-    };
-    s4.appendChild(del);
-    wrap.appendChild(s4);
-    // Append the analysis flow to guide users through the recommended process
-    const s5 = document.createElement("div");
-    s5.className = "section";
-    const flowTitle = document.createElement("div");
-    flowTitle.className = "sectionTitle";
-    flowTitle.textContent = "Workflow";
-    s5.appendChild(flowTitle);
-    s5.appendChild(analysisFlowSection());
-    wrap.appendChild(s5);
-
-    return wrap;
-  }
-
-  function renderOSMDetails(o){
-    const wrap = document.createElement("div");
-
-    const s1 = document.createElement("div");
-    s1.className = "section";
-    s1.innerHTML = '<div class="sectionTitle">OSM place</div>';
-    const kv = document.createElement("div");
-    kv.className = "kv";
-    kv.innerHTML = `
-      <div>Category</div><div><b>${labelOf("category", o.category)}</b></div>
-      <div>OSM id</div><div><span class="mono">${o.osmType}/${o.osmId}</span></div>
-      <div>Name</div><div><b>${escapeHtml(o.title)}</b></div>
-    `;
-    s1.appendChild(kv);
-    wrap.appendChild(s1);
-
-    const s2 = document.createElement("div");
-    s2.className = "section";
-    s2.innerHTML = '<div class="sectionTitle">Tags</div>';
-    const pre = document.createElement("pre");
-    pre.className = "input mono";
-    pre.style.whiteSpace = "pre-wrap";
-    pre.textContent = tagsToText(o.tags || {});
-    s2.appendChild(pre);
-    const r = document.createElement("div");
-    r.className = "row";
-    const c1 = document.createElement("button");
-    c1.className = "btn secondary";
-    c1.textContent = "Copy tags";
-    c1.onclick = async () => {
-      try{ await navigator.clipboard.writeText(tagsToText(o.tags || {})); c1.textContent="Copied"; setTimeout(()=>c1.textContent="Copy tags", 900); }catch{}
-    };
-    const c2 = document.createElement("button");
-    c2.className = "btn secondary";
-    c2.textContent = "Open OSM object";
-    c2.onclick = () => window.open(`https://www.openstreetmap.org/${o.osmType}/${o.osmId}`, "_blank");
-    r.appendChild(c1); r.appendChild(c2);
-    s2.appendChild(r);
-    wrap.appendChild(s2);
-
-    return wrap;
-  }
-
-  // Fields
-  function fieldText(label, value, onChange){
-    const box = document.createElement("div");
-    box.style.marginBottom = "10px";
-    const l = document.createElement("div");
-    l.className = "sectionTitle";
-    l.style.marginBottom = "6px";
-    l.textContent = label;
-    const inp = document.createElement("input");
-    inp.className = "input";
-    inp.value = value || "";
-    inp.oninput = () => onChange(inp.value);
-    box.appendChild(l);
-    box.appendChild(inp);
-    return box;
-  }
-  function fieldTextarea(label, value, onChange){
-    const box = document.createElement("div");
-    box.style.marginBottom = "10px";
-    const l = document.createElement("div");
-    l.className = "sectionTitle";
-    l.style.marginBottom = "6px";
-    l.textContent = label;
-    const ta = document.createElement("textarea");
-    ta.className = "textarea";
-    ta.value = value || "";
-    ta.oninput = () => onChange(ta.value);
-    box.appendChild(l);
-    box.appendChild(ta);
-    return box;
-  }
-  function fieldSelect(label, options, value, onChange){
-    const box = document.createElement("div");
-    box.style.marginBottom = "10px";
-    const l = document.createElement("div");
-    l.className = "sectionTitle";
-    l.style.marginBottom = "6px";
-    l.textContent = label;
-    const sel = document.createElement("select");
-    sel.className = "select";
-    for(const o of options){
-      const op = document.createElement("option");
-      op.value = o.id;
-      op.textContent = o.label;
-      if(o.id === value) op.selected = true;
-      sel.appendChild(op);
-    }
-    sel.onchange = () => onChange(sel.value);
-    box.appendChild(l);
-    box.appendChild(sel);
-    return box;
-  }
-  function fieldTags(label, tags, onChange){
-    const box = document.createElement("div");
-    box.style.marginBottom = "10px";
-    const l = document.createElement("div");
-    l.className = "sectionTitle";
-    l.style.marginBottom = "6px";
-    l.textContent = label;
-
-    const inp = document.createElement("input");
-    inp.className = "input";
-    inp.placeholder = "Comma-separated tags (e.g., unsafe, dark, kids, elderly)";
-    inp.value = (tags || []).join(", ");
-    inp.onchange = () => {
-      const arr = inp.value.split(",").map(s=>s.trim()).filter(Boolean).slice(0, 25);
-      onChange(arr);
-    };
-
-    box.appendChild(l);
-    box.appendChild(inp);
-    // Insert suggested problem tags as clickable chips. Clicking a chip
-    // adds it to the comma‑separated list if not already present.
-    if(Array.isArray(PROBLEM_TAG_SUGGESTIONS) && PROBLEM_TAG_SUGGESTIONS.length > 0){
-      const sugg = document.createElement('div');
-      sugg.className = 'tagSuggestions';
-      PROBLEM_TAG_SUGGESTIONS.forEach(tg => {
-        const chip = document.createElement('div');
-        chip.className = 'chip';
-        chip.textContent = tg;
-        chip.onclick = () => {
-          const current = inp.value.split(',').map(s=>s.trim()).filter(Boolean);
-          if(!current.includes(tg)){
-            current.push(tg);
-            inp.value = current.join(', ');
-            onChange(current);
-          }
+      function normalizePoi(poi) {
+        return {
+          id: poi.id || uid(),
+          title: poi.title || "Untitled POI",
+          summary: poi.summary || "",
+          lat: Number(poi.lat),
+          lon: Number(poi.lon),
+          categoryId: poi.categoryId || "note",
+          priority: validPriority(poi.priority) ? poi.priority : "medium",
+          tags: Array.isArray(poi.tags) ? poi.tags.filter(Boolean) : [],
+          comments: Array.isArray(poi.comments) ? poi.comments.map(c => typeof c === "string" ? { id: uid(), text: c, createdAt: new Date().toISOString() } : {
+            id: c.id || uid(),
+            text: c.text || "",
+            createdAt: c.createdAt || new Date().toISOString()
+          }).filter(c => c.text.trim()) : [],
+          images: Array.isArray(poi.images) ? poi.images.map(img => {
+            if (typeof img === "string") {
+              return {
+                id: uid(),
+                title: "Image",
+                description: "",
+                dataUrl: img
+              };
+            }
+            return {
+              id: img.id || uid(),
+              title: img.title || "Image",
+              description: img.description || "",
+              dataUrl: img.dataUrl || img.src || ""
+            };
+          }).filter(img => img.dataUrl) : [],
+          createdAt: poi.createdAt || new Date().toISOString()
         };
-        sugg.appendChild(chip);
-      });
-      box.appendChild(sugg);
-    }
-    return box;
-  }
-
-  function fieldKeyValueTags(p){
-    // Start with category mapping as defaults
-    const box = document.createElement("div");
-    const txt = document.createElement("textarea");
-    txt.className = "textarea mono";
-    txt.placeholder = "key=value (one per line)";
-    const merged = { ...(defaultOSMTagsForPOI(p)), ...(p.osmTags||{}) };
-    txt.value = tagsToText(merged);
-    txt.onchange = () => {
-      p.osmTags = parseKeyValue(txt.value);
-      savePOIs();
-      renderList();
-    };
-    const row = document.createElement("div");
-    row.className = "row";
-    row.style.marginTop = "8px";
-
-    const copy = document.createElement("button");
-    copy.className = "btn secondary";
-    copy.textContent = "Copy tags";
-    copy.onclick = async () => {
-      try{ await navigator.clipboard.writeText(tagsToText({ ...(defaultOSMTagsForPOI(p)), ...(p.osmTags||{}) })); copy.textContent="Copied"; setTimeout(()=>copy.textContent="Copy tags", 900); }catch{}
-    };
-
-    row.appendChild(copy);
-    box.appendChild(txt);
-    box.appendChild(row);
-    return box;
-  }
-
-  // Numeric input field for entering scores (e.g. feedback scores 0–100). It
-  // enforces optional minimum and maximum constraints and returns null when
-  // empty. The value provided to onChange is clamped between min and max.
-  function fieldNumber(label, value, min, max, onChange){
-    const box = document.createElement("div");
-    box.style.marginBottom = "10px";
-    const l = document.createElement("div");
-    l.className = "sectionTitle";
-    l.style.marginBottom = "6px";
-    l.textContent = label;
-    const inp = document.createElement("input");
-    inp.type = "number";
-    inp.className = "input";
-    if(min !== undefined) inp.min = min;
-    if(max !== undefined) inp.max = max;
-    inp.value = (value ?? "");
-    inp.oninput = () => {
-      const v = inp.value;
-      if(v === "" || isNaN(Number(v))) onChange(null);
-      else{
-        let num = Number(v);
-        if(typeof min === "number") num = Math.max(num, min);
-        if(typeof max === "number") num = Math.min(num, max);
-        onChange(num);
       }
-    };
-    box.appendChild(l);
-    box.appendChild(inp);
-    return box;
-  }
 
-  // Date input field used for storing the workshop or session date. It
-  // leverages the browser’s native date picker. If the value is falsy
-  // nothing is shown.
-  function fieldDate(label, value, onChange){
-    const box = document.createElement("div");
-    box.style.marginBottom = "10px";
-    const l = document.createElement("div");
-    l.className = "sectionTitle";
-    l.style.marginBottom = "6px";
-    l.textContent = label;
-    const inp = document.createElement("input");
-    inp.type = "date";
-    inp.className = "input";
-    inp.value = value || "";
-    inp.oninput = () => onChange(inp.value || "");
-    box.appendChild(l);
-    box.appendChild(inp);
-    return box;
-  }
-
-  function defaultOSMTagsForPOI(p){
-    const tags = {};
-    tags["social:type"] = p.type;
-    tags["social:category"] = p.category;
-    tags["social:urgency"] = p.urgency;
-    if(p.tags?.length) tags["social:tags"] = p.tags.join(";");
-    if(p.comment?.trim()) tags["note"] = p.comment.trim().slice(0, 240);
-
-    // Optional multi-use flags
-    tags["social:time_use"] = [
-      p.timeUse?.weekday ? "weekday" : null,
-      p.timeUse?.weekend ? "weekend" : null,
-      p.timeUse?.day ? "day" : null,
-      p.timeUse?.evening ? "evening" : null
-    ].filter(Boolean).join(",");
-
-    // A light “OSM-like” suggestion
-    if(p.category === "meeting") tags["amenity"] = "community_centre";
-    if(p.category === "play") tags["leisure"] = "playground";
-    if(p.category === "benches") tags["amenity"] = "bench";
-    if(p.category === "sports") tags["leisure"] = "sports_centre";
-    if(p.category === "parking") tags["amenity"] = "parking";
-    return tags;
-  }
-
-  // Photo panels
-  function photoPanel(title, obj, onChange){
-    const box = document.createElement("div");
-    box.className = "photoBox";
-    const h = document.createElement("h3");
-    h.textContent = title;
-
-    const wrap = document.createElement("div");
-    wrap.className = "imgWrap";
-    if(obj?.mode === "url" && obj.data){
-      const img = document.createElement("img"); img.src = obj.data; img.alt = title;
-      wrap.innerHTML = ""; wrap.appendChild(img);
-    }else if(obj?.mode === "upload" && obj.data){
-      const img = document.createElement("img"); img.src = obj.data; img.alt = title;
-      wrap.innerHTML = ""; wrap.appendChild(img);
-    }else{
-      wrap.textContent = "No image";
-    }
-
-    const actions = document.createElement("div");
-    actions.className = "imgActions";
-
-    const up = document.createElement("input");
-    up.type = "file"; up.accept = "image/*"; up.style.display="none";
-    up.onchange = async () => {
-      const f = up.files?.[0];
-      if(!f) return;
-      const dataUrl = await fileToDataURL(f, 1400);
-      onChange({ mode:"upload", data: dataUrl });
-    };
-
-    const bUpload = document.createElement("button");
-    bUpload.className = "btn secondary";
-    bUpload.textContent = "Upload";
-    bUpload.onclick = () => up.click();
-
-    const bUrl = document.createElement("button");
-    bUrl.className = "btn secondary";
-    bUrl.textContent = "Use URL";
-    bUrl.onclick = () => {
-      const u = prompt("Paste an image URL (https://...)");
-      if(!u) return;
-      onChange({ mode:"url", data:u.trim() });
-    };
-
-    const bClear = document.createElement("button");
-    bClear.className = "btn danger";
-    bClear.textContent = "Clear";
-    bClear.onclick = () => onChange({ mode:"none", data:null });
-
-    actions.appendChild(bUpload);
-    actions.appendChild(bUrl);
-    actions.appendChild(bClear);
-
-    box.appendChild(h);
-    box.appendChild(wrap);
-    box.appendChild(actions);
-    box.appendChild(up);
-    return box;
-  }
-
-  // Custom before panel which falls back to a static OpenStreetMap snapshot when
-  // no user photo is supplied. The snapshot uses the point's coordinates to
-  // display a map tile with a marker. This avoids blank panels when editing
-  // newly added POIs and removes the dependency on Wikimedia Commons for
-  // "before" images. The caller should pass the full POI object (p) so we
-  // can access its latitude/longitude.
-  function beforePanel(p, onChange){
-    const box = document.createElement("div");
-    box.className = "photoBox";
-    const h = document.createElement("h3");
-    h.textContent = "Before (current)";
-    box.appendChild(h);
-    const wrap = document.createElement("div");
-    wrap.className = "imgWrap";
-    // Determine what to show: user supplied upload/url or a static OSM map.
-    if(p.before && p.before.mode !== "none" && p.before.data){
-      // Accept both absolute URLs and relative file names for local assets. If the
-      // string does not appear to be a full URL (no scheme prefix) we leave it
-      // as-is and rely on the browser to resolve it relative to the current
-      // document. This allows users to place ready-made photos in the same
-      // directory as this HTML file and reference them by filename.
-      const img = document.createElement("img");
-      img.src = p.before.data;
-      img.alt = "Before";
-      wrap.innerHTML = "";
-      wrap.appendChild(img);
-    }else if(typeof p.lat === "number" && typeof p.lon === "number"){
-      // Build a static map URL from OpenStreetMap. The static map service does
-      // not require an API key and returns a PNG centred on the POI. We mark
-      // the location with a red pushpin. Adjust the size and zoom as needed.
-      const center = `${p.lat},${p.lon}`;
-      const zoom = 17;
-      const size = "600x300";
-      const marker = `${p.lat},${p.lon},red-pushpin`;
-      const staticUrl = `https://staticmap.openstreetmap.de/staticmap.php?center=${center}&zoom=${zoom}&size=${size}&markers=${marker}`;
-      const img = document.createElement("img");
-      img.src = staticUrl;
-      img.alt = "Map snapshot";
-      wrap.innerHTML = "";
-      wrap.appendChild(img);
-    }else{
-      wrap.textContent = "No image";
-    }
-    box.appendChild(wrap);
-    const actions = document.createElement("div");
-    actions.className = "imgActions";
-    // Hidden file input for uploads
-    const up = document.createElement("input");
-    up.type = "file";
-    up.accept = "image/*";
-    up.style.display = "none";
-    up.onchange = async () => {
-      const f = up.files?.[0];
-      if(!f) return;
-      const dataUrl = await fileToDataURL(f, 1400);
-      onChange({ mode:"upload", data: dataUrl });
-    };
-    const bUpload = document.createElement("button");
-    bUpload.className = "btn secondary";
-    bUpload.textContent = "Upload";
-    bUpload.onclick = () => up.click();
-    const bUrl = document.createElement("button");
-    bUrl.className = "btn secondary";
-    bUrl.textContent = "Use URL";
-    bUrl.onclick = () => {
-      const u = prompt("Paste an image URL (https://...)");
-      if(!u) return;
-      onChange({ mode:"url", data: u.trim() });
-    };
-    const bClear = document.createElement("button");
-    bClear.className = "btn danger";
-    bClear.textContent = "Clear";
-    bClear.onclick = () => onChange({ mode:"none", data: null });
-    const bStreet = document.createElement("button");
-    bStreet.className = "btn secondary";
-    bStreet.textContent = "Street View";
-    bStreet.onclick = () => {
-      // Provide quick access to Google Street View for the current POI location.
-      if(typeof p.lat === 'number' && typeof p.lon === 'number'){
-        openStreetView({ lat: p.lat, lng: p.lon });
+      function saveState() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       }
-    };
-    actions.appendChild(bUpload);
-    actions.appendChild(bUrl);
-    actions.appendChild(bClear);
-    // Add Street View button to allow users to view current conditions via Google
-    // Street View directly from the photo panel. This satisfies the request for
-    // a Street View option when no “before” image is available.
-    actions.appendChild(bStreet);
-    box.appendChild(actions);
-    box.appendChild(up);
 
-// Enable click-then-paste behaviour for this panel.
-// (We route global clipboard paste events to the last clicked panel.)
-if(typeof box.tabIndex !== 'number' || box.tabIndex < 0) box.tabIndex = 0;
-box.addEventListener('mousedown', () => {
-  setActiveImagePaste(box, async (file) => {
-    const dataUrl = await fileToDataURL(file, 1400);
-    onChange({ mode:'upload', data: dataUrl });
-  });
-}, true);
-return box;
-  }
-
-  // Build an analysis flow section summarising the recommended workflow. This
-  // visual guide breaks the process of documenting a POI into six discrete
-  // steps: tagging the issue, adding descriptive text and tags, fetching the
-  // surrounding context, brainstorming solutions, mapping the expected effects
-  // through a feedback loop, and capturing community feedback. It returns a
-  // DOM element that can be appended to an editing panel.
-  function analysisFlowSection(){
-    const flow = document.createElement("div");
-    flow.className = "analysisFlow";
-    const steps = [
-      { icon: "🏷️", title: "Create tag", desc: "Describe the issue succinctly" },
-      { icon: "💬", title: "Comment + tags", desc: "Add notes and categories" },
-      { icon: "🗺️", title: "Context", desc: "Fetch geo/topo/cat info" },
-      { icon: "💡", title: "Find solutions", desc: "Look up ideas or templates" },
-      { icon: "🔄", title: "Map effects", desc: "Consider the feedback loops" },
-      { icon: "⭐", title: "Feedback", desc: "Collect ratings & refine" }
-    ];
-    for(const st of steps){
-      const card = document.createElement("div");
-      card.className = "analysisStep";
-      const ico = document.createElement("div");
-      ico.className = "icon";
-      ico.textContent = st.icon;
-      const ttl = document.createElement("strong");
-      ttl.textContent = st.title;
-      const sm = document.createElement("small");
-      sm.textContent = st.desc;
-      card.appendChild(ico);
-      card.appendChild(ttl);
-      card.appendChild(sm);
-      flow.appendChild(card);
-    }
-    return flow;
-  }
-
-  function afterPanel(p){
-    const box = document.createElement("div");
-    box.className = "photoBox";
-    const h = document.createElement("h3");
-    h.textContent = "After (inspiration)";
-    box.appendChild(h);
-
-    const sel = document.createElement("select");
-    sel.className = "select";
-    for(const t of SOLUTION_TEMPLATES){
-      const op = document.createElement("option");
-      op.value = t.id; op.textContent = t.label;
-      if(p.after?.data === t.id) op.selected = true;
-      sel.appendChild(op);
-    }
-    sel.onchange = async () => {
-      p.after = { mode:"template", data: sel.value };
-      savePOIs();
-      await renderTemplateGallery(sel.value, gallery, (imgUrl)=>{ p.after = { mode:"url", data: imgUrl }; savePOIs(); renderRight(selected); });
-    };
-    box.appendChild(sel);
-
-    const wrap = document.createElement("div");
-    wrap.className = "imgWrap";
-    if(p.after?.mode === "url" && p.after?.data){
-      const img = document.createElement("img"); img.src = p.after.data; img.alt = "After";
-      wrap.innerHTML = ""; wrap.appendChild(img);
-    }else{
-      wrap.textContent = "Pick a template below";
-    }
-    box.appendChild(wrap);
-
-    const gallery = document.createElement("div");
-    gallery.className = "gallery";
-    box.appendChild(gallery);
-
-    const actions = document.createElement("div");
-    actions.className = "imgActions";
-    const bPick = document.createElement("button");
-    bPick.className = "btn secondary";
-    bPick.textContent = "Refresh templates";
-    bPick.onclick = () => renderTemplateGallery(sel.value, gallery, (imgUrl)=>{ p.after = { mode:"url", data: imgUrl }; savePOIs(); renderRight(selected); });
-
-    actions.appendChild(bPick);
-    box.appendChild(actions);
-
-    // initial gallery
-    renderTemplateGallery(p.after?.data || sel.value, gallery, (imgUrl)=>{ p.after = { mode:"url", data: imgUrl }; savePOIs(); renderRight(selected); });
-
-// Enable click-then-paste behaviour for this panel.
-if(typeof box.tabIndex !== 'number' || box.tabIndex < 0) box.tabIndex = 0;
-box.addEventListener('mousedown', () => {
-  setActiveImagePaste(box, async (file) => {
-    const dataUrl = await fileToDataURL(file, 1400);
-    p.after = { mode:'upload', data: dataUrl };
-    savePOIs();
-    renderRight(selected);
-  });
-}, true);
-return box;
-  }
-
-  async function renderTemplateGallery(templateId, galleryEl, onPick){
-    galleryEl.innerHTML = "";
-    const tpl = SOLUTION_TEMPLATES.find(t=>t.id===templateId);
-    if(!tpl){ galleryEl.innerHTML = '<div class="rightHint">No template.</div>'; return; }
-
-    // If a local image is defined for this template use it directly. This avoids
-    // relying on external services which may block file-based access. The
-    // gallery will consist of a single tile showing the local image. Clicking it
-    // will assign that image as the "after" picture.
-    if(tpl.img){
-      const d = document.createElement("div");
-      d.className = "thumb";
-      d.innerHTML = `<img src="${escapeAttr(tpl.img)}" alt=""><span>${escapeHtml(tpl.label)}</span>`;
-      d.onclick = () => onPick(tpl.img);
-      galleryEl.appendChild(d);
-      return;
-    }
-    // Otherwise fall back to Wikimedia Commons search (if enabled). If
-    // commonsSearchImages returns nothing we notify the user.
-    const tiles = await commonsSearchImages(tpl.query, 9);
-    if(tiles.length === 0){
-      galleryEl.innerHTML = '<div class="rightHint">No results found. Try refresh.</div>';
-      return;
-    }
-    for(const t of tiles){
-      const d = document.createElement("div");
-      d.className = "thumb";
-      d.innerHTML = `<img src="${escapeAttr(t.thumb)}" alt=""><span>${escapeHtml(t.title)}</span>`;
-      d.onclick = () => onPick(t.full || t.thumb);
-      galleryEl.appendChild(d);
-    }
-  }
-
-  // Wikimedia Commons: search images by keyword (real photos)
-  async function commonsSearchImages(query, limit=9){
-    try{
-      const url = `${COMMONS_API}&action=query&format=json&generator=search&gsrnamespace=6&gsrsearch=${encodeURIComponent(query)}&gsrlimit=${Math.min(limit, 15)}&prop=pageimages|info&inprop=url&piprop=thumbnail&pithumbsize=420`;
-      const r = await fetch(url);
-      if(!r.ok) return [];
-      const j = await r.json();
-      const pages = j?.query?.pages ? Object.values(j.query.pages) : [];
-      return pages
-        .filter(p => p.thumbnail?.source)
-        .map(p => ({
-          title: (p.title || "").replace(/^File:/,""),
-          thumb: p.thumbnail.source,
-          full: p.fullurl || p.canonicalurl || p.thumbnail.source
-        }))
-        .slice(0, limit);
-    }catch{
-      return [];
-    }
-  }
-
-  // Fetch the first geotagged Wikimedia Commons photo near a location
-  async function fetchNearbyPhotoURL(lat, lon){
-    try{
-      const url = `${COMMONS_API}&action=query&format=json&generator=geosearch&ggscoord=${lat}%7C${lon}&ggsradius=1000&ggslimit=8&prop=pageimages|info&inprop=url&piprop=thumbnail&pithumbsize=500`;
-      const res = await fetch(url);
-      if(!res.ok) return null;
-      const j = await res.json();
-      const pages = j?.query?.pages ? Object.values(j.query.pages) : [];
-      const pics = pages.filter(p => p.thumbnail?.source);
-      if(pics.length > 0){
-        const first = pics[0];
-        return first.thumbnail?.source || null;
+      function uid() {
+        return Math.random().toString(36).slice(2, 10);
       }
-      return null;
-    }catch{
-      return null;
-    }
-  }
 
-  // Fetch the first inspiration image for a given solution template
-  async function fetchTemplateImage(templateId){
-    const tpl = SOLUTION_TEMPLATES.find(t => t.id === templateId);
-    if(!tpl) return null;
-    // Prefer local image if available
-    if(tpl.img) return tpl.img;
-    const imgs = await commonsSearchImages(tpl.query, 3);
-    if(imgs.length > 0){
-      const img = imgs[0];
-      return img.full || img.thumb;
-    }
-    return null;
-  }
+      function validPriority(id) {
+        return PRIORITIES.some(p => p.id === id);
+      }
 
-  // Automatically populate before/after images for a new POI
-  async function autoPopulateImagesForPOI(p){
-    // Only populate if there is currently no user-provided image
-    if(!p.before || p.before.mode === 'none'){
-      // Use a static map snapshot for the before photo to ensure there is always
-      // something meaningful shown. The beforePanel will automatically
-      // construct the URL when rendering, so here we simply mark the field
-      // as "none" (no data) to trigger fallback behaviour. Setting to null
-      // explicitly keeps the property for future edits.
-      p.before = { mode:'none', data: null };
-    }
-    // After: fetch from default or current template using local images
-    const tplId = p.after?.data || 'pocket-park';
-    const afterUrl = await fetchTemplateImage(tplId);
-    if(afterUrl){ p.after = { mode:'url', data: afterUrl }; }
-  }
+      function getPriority(priorityId) {
+        return PRIORITIES.find(p => p.id === priorityId) || PRIORITIES[1];
+      }
 
-  // Wikimedia Commons: geosearch near point
-  async function loadNearbyPhotos(lat, lon){
-    clusterPhotos.clearLayers();
-    const holder = document.getElementById("nearbyPhotos");
-    if(holder) holder.innerHTML = '<div class="rightHint">Loading…</div>';
+      function getCategory(categoryId) {
+        return state.categories.find(c => c.id === categoryId) || state.categories[0] || DEFAULT_CATEGORIES[0];
+      }
 
-    try{
-      const url = `${COMMONS_API}&action=query&format=json&generator=geosearch&ggscoord=${lat}%7C${lon}&ggsradius=1500&ggslimit=12&prop=pageimages|info&inprop=url&piprop=thumbnail&pithumbsize=420`;
-      const r = await fetch(url);
-      if(!r.ok) throw new Error("Commons request failed");
-      const j = await r.json();
-      const pages = j?.query?.pages ? Object.values(j.query.pages) : [];
-      const pics = pages
-        .filter(p => p.thumbnail?.source)
-        .map(p => ({
-          title: p.title,
-          thumb: p.thumbnail.source,
-          page: p.fullurl || p.canonicalurl || null,
-          lat: p.coordinates?.[0]?.lat,
-          lon: p.coordinates?.[0]?.lon
-        }));
+      function prioritySortValue(priorityId) {
+        return getPriority(priorityId).score;
+      }
 
-      // Render panel gallery
-      if(holder){
-        if(pics.length === 0){
-          holder.innerHTML = '<div class="rightHint">No geotagged photos found nearby on Wikimedia Commons.</div>';
-        }else{
-          const g = document.createElement("div");
-          g.className = "gallery";
-          for(const pic of pics){
-            const d = document.createElement("div");
-            d.className = "thumb";
-            d.innerHTML = `<img src="${escapeAttr(pic.thumb)}" alt=""><span>${escapeHtml(shorten(pic.title, 32))}</span>`;
-            d.onclick = () => { if(pic.page) window.open(pic.page, "_blank"); };
-            g.appendChild(d);
+      function displayCountLabel(count, singular, plural) {
+        return `${count} ${count === 1 ? singular : plural}`;
+      }
 
-            // Optional map marker
-            if(typeof pic.lat === "number" && typeof pic.lon === "number"){
-              const m = L.marker([pic.lat, pic.lon], { icon: markerIcon("osm") });
-              m.bindPopup(`<div style="max-width:240px">
-                <div style="font-weight:800;margin-bottom:6px">${escapeHtml(shorten(pic.title, 60))}</div>
-                <img src="${escapeAttr(pic.thumb)}" style="width:100%;border-radius:10px;border:1px solid rgba(148,163,184,.18)"/>
-              </div>`, { closeButton:true });
-              clusterPhotos.addLayer(m);
+      function toggleAddMode(force) {
+        addMode = typeof force === "boolean" ? force : !addMode;
+        els.addPoiBtn.classList.toggle("active", addMode);
+        els.modePill.textContent = addMode ? "Add mode" : "Browse mode";
+        els.addHint.textContent = addMode
+          ? "Click on the map to place a new status quo POI."
+          : "Click Add POI, then click on the map to place one.";
+        map.getContainer().style.cursor = addMode ? "crosshair" : "";
+      }
+
+      function buildFilterOptions() {
+        els.categoryFilter.innerHTML = "";
+        const allOpt = new Option("All categories", "all");
+        els.categoryFilter.add(allOpt);
+        state.categories.forEach(cat => {
+          els.categoryFilter.add(new Option(`${cat.icon} ${cat.label}`, cat.id));
+        });
+
+        els.priorityFilter.innerHTML = "";
+        els.priorityFilter.add(new Option("All priorities", "all"));
+        PRIORITIES.forEach(item => els.priorityFilter.add(new Option(item.label, item.id)));
+
+        els.sortSelect.innerHTML = "";
+        [
+          ["priority_desc", "Sort: priority high → low"],
+          ["priority_asc", "Sort: priority low → high"],
+          ["title_asc", "Sort: title A → Z"],
+          ["newest", "Sort: newest first"]
+        ].forEach(([value, label]) => {
+          els.sortSelect.add(new Option(label, value));
+        });
+
+        renderQuickCategoryChips();
+      }
+
+      function renderQuickCategoryChips() {
+        els.quickCategoryChips.innerHTML = "";
+        const entries = [{ id: "all", label: "All", icon: "•" }, ...state.categories];
+        entries.forEach(cat => {
+          const chip = document.createElement("button");
+          chip.type = "button";
+          chip.className = "categoryChip" + (quickCategory === cat.id ? " active" : "");
+          chip.textContent = cat.id === "all" ? "All" : `${cat.icon} ${cat.label}`;
+          chip.addEventListener("click", () => {
+            quickCategory = cat.id;
+            renderQuickCategoryChips();
+            renderAll();
+          });
+          els.quickCategoryChips.appendChild(chip);
+        });
+      }
+
+      function getVisiblePois() {
+        const search = els.searchInput.value.trim().toLowerCase();
+        const categoryFilter = els.categoryFilter.value || "all";
+        const priorityFilter = els.priorityFilter.value || "all";
+        const sort = els.sortSelect.value || "priority_desc";
+
+        const filtered = state.pois.filter(poi => {
+          const haystack = [
+            poi.title,
+            poi.summary,
+            poi.tags.join(" "),
+            poi.comments.map(c => c.text).join(" ")
+          ].join(" ").toLowerCase();
+
+          const matchesSearch = !search || haystack.includes(search);
+          const matchesCategory = categoryFilter === "all" || poi.categoryId === categoryFilter;
+          const matchesQuick = quickCategory === "all" || poi.categoryId === quickCategory;
+          const matchesPriority = priorityFilter === "all" || poi.priority === priorityFilter;
+          return matchesSearch && matchesCategory && matchesQuick && matchesPriority;
+        });
+
+        filtered.sort((a, b) => {
+          if (sort === "priority_desc") return prioritySortValue(b.priority) - prioritySortValue(a.priority) || a.title.localeCompare(b.title);
+          if (sort === "priority_asc") return prioritySortValue(a.priority) - prioritySortValue(b.priority) || a.title.localeCompare(b.title);
+          if (sort === "title_asc") return a.title.localeCompare(b.title);
+          if (sort === "newest") return new Date(b.createdAt) - new Date(a.createdAt);
+          return 0;
+        });
+
+        return filtered;
+      }
+
+      function markerHtml(poi, extraClass = "") {
+        const category = getCategory(poi.categoryId);
+        const priority = getPriority(poi.priority);
+        return `
+          <div class="markerWrap ${extraClass}">
+            <div class="poiMarkerGlow"></div>
+            <div class="poiMarker" style="background:${priority.color};">
+              <div class="poiMarkerInner">${category.icon}</div>
+            </div>
+          </div>
+        `;
+      }
+
+      function tooltipHtml(poi) {
+        const category = getCategory(poi.categoryId);
+        const priority = getPriority(poi.priority);
+        return `
+          <div class="tooltipBox">
+            <div class="tooltipTitle">${escapeHtml(poi.title || "Untitled POI")}</div>
+            <div class="tooltipMeta">
+              Category: ${escapeHtml(category.label)}<br>
+              Urgency: ${escapeHtml(priority.label)}<br>
+              Comments: ${poi.comments.length}<br>
+              Images: ${poi.images.length}
+            </div>
+          </div>
+        `;
+      }
+
+      function renderMarkers() {
+        poiLayer.clearLayers();
+        markersById = new Map();
+        const visibleIds = new Set(getVisiblePois().map(p => p.id));
+
+        state.pois.forEach(poi => {
+          const marker = L.marker([poi.lat, poi.lon], {
+            icon: L.divIcon({
+              className: "",
+              html: markerHtml(poi),
+              iconSize: [34, 34],
+              iconAnchor: [17, 34],
+              tooltipAnchor: [0, -28]
+            })
+          });
+
+          marker.bindTooltip(tooltipHtml(poi), {
+            direction: "top",
+            className: "poiTooltip",
+            opacity: 1
+          });
+
+          marker.on("mouseover", () => {
+            hoveredId = poi.id;
+            marker.openTooltip();
+            applyHoverState();
+          });
+          marker.on("mouseout", () => {
+            hoveredId = null;
+            if (selectedId !== poi.id) marker.closeTooltip();
+            applyHoverState();
+          });
+          marker.on("click", () => {
+            selectedId = poi.id;
+            renderAll();
+          });
+
+          if (visibleIds.has(poi.id)) marker.addTo(poiLayer);
+          markersById.set(poi.id, marker);
+        });
+
+        applyHoverState();
+      }
+
+      function applyHoverState() {
+        markersById.forEach((marker, id) => {
+          const isSelected = id === selectedId;
+          const isHovered = id === hoveredId;
+          const iconEl = marker.getElement();
+          if (iconEl) {
+            const wrap = iconEl.querySelector(".markerWrap");
+            if (wrap) {
+              wrap.classList.toggle("selected", isSelected);
+              wrap.classList.toggle("hovered", isHovered);
             }
           }
-          holder.innerHTML = "";
-          holder.appendChild(g);
-        }
-      }
-    }catch(e){
-      if(holder) holder.innerHTML = '<div class="rightHint">Could not load nearby photos.</div>';
-    }
-  }
-
-  // Overpass
-  async function loadOSMForView(){
-    if(map.getZoom() < CONFIG.minZoomForOverpass){
-      alert(`Please zoom in to at least zoom ${CONFIG.minZoomForOverpass} before loading OSM (faster + avoids timeouts).`);
-      return;
-    }
-    const b = map.getBounds();
-    const bbox = [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()]; // S,W,N,E
-
-    const cats = Array.from(selectedCategories);
-    const query = buildOverpassQuery(bbox, cats);
-
-    el("btnLoadOSM").textContent = "Loading…";
-    el("btnLoadOSM").disabled = true;
-
-    try{
-      const data = await overpassRequest(query);
-      osmPlaces = normalizeOverpass(data);
-      refreshOSMMarkers();
-      renderList();
-    }catch(err){
-      console.error(err);
-      alert(overpassUserMessage(err));
-    }finally{
-      el("btnLoadOSM").textContent = "Load OSM";
-      el("btnLoadOSM").disabled = false;
-    }
-  }
-
-  function buildOverpassQuery(bbox, catIds){
-    const [s,w,n,e] = bbox;
-    const parts = [];
-    const cats = CATEGORY_PRESETS.filter(c => catIds.includes(c.id));
-
-    const addKV = (k,v) => {
-      const selector = v === "*" ? `[${k}]` : `[${k}="${v}"]`;
-      parts.push(`node${selector}(${s},${w},${n},${e});`);
-      parts.push(`way${selector}(${s},${w},${n},${e});`);
-      parts.push(`relation${selector}(${s},${w},${n},${e});`);
-    };
-
-    cats.forEach(c => c.osm.forEach(([k,v]) => addKV(k,v)));
-
-    // Reasonable output for points + center for areas
-    return `[out:json][timeout:25];(${parts.join("")});out center tags;`;
-  }
-
-  async function overpassRequest(query){
-    const endpoints = [...CONFIG.overpassEndpoints];
-    const saved = localStorage.getItem(LAST_ENDPOINT_KEY);
-    if(saved && endpoints.includes(saved)){
-      endpoints.splice(endpoints.indexOf(saved),1);
-      endpoints.unshift(saved);
-    }
-
-    let lastErr = null;
-
-    for(const endpoint of endpoints){
-      try{
-        const controller = new AbortController();
-        const t = setTimeout(()=>controller.abort(), 28000);
-
-        const res = await fetch(endpoint, {
-          method: "POST",
-          headers: { "Content-Type":"application/x-www-form-urlencoded; charset=UTF-8" },
-          body: "data=" + encodeURIComponent(query),
-          signal: controller.signal
         });
 
-        clearTimeout(t);
-
-        if(!res.ok){
-          lastErr = new Error(`Overpass HTTP ${res.status}`);
-          continue;
-        }
-        const json = await res.json();
-        localStorage.setItem(LAST_ENDPOINT_KEY, endpoint);
-        return json;
-      }catch(e){
-        lastErr = e;
-        continue;
-      }
-    }
-    throw lastErr || new Error("Overpass failed");
-  }
-
-  function overpassUserMessage(err){
-    const msg = String(err?.message || err || "Overpass error");
-    if(location.protocol === "file:"){
-      return "Overpass request blocked (likely CORS from file://). Run this via a local server (http://localhost) and try again.";
-    }
-    if(msg.includes("AbortError")) return "Overpass timed out. Zoom in more and try again.";
-    if(msg.includes("429")) return "Overpass rate limit reached. Wait a moment and try again.";
-    return "Could not load OSM places. Zoom in and try again. If it keeps failing, Overpass may be temporarily down.";
-  }
-
-  function normalizeOverpass(data){
-    const els = data?.elements || [];
-    const out = [];
-    for(const el of els){
-      const tags = el.tags || {};
-      const title = tags.name || tags.operator || tags.brand || "OSM place";
-      const lat = el.type === "node" ? el.lat : el.center?.lat;
-      const lon = el.type === "node" ? el.lon : el.center?.lon;
-      if(typeof lat !== "number" || typeof lon !== "number") continue;
-
-      const category = inferCategory(tags);
-      out.push({
-        id: `${el.type}/${el.id}`,
-        osmType: el.type,
-        osmId: el.id,
-        title,
-        lat, lon,
-        category,
-        tags
-      });
-    }
-    return out;
-  }
-
-  function inferCategory(tags){
-    const get = (k)=>tags[k];
-    const has = (k)=>tags[k] !== undefined;
-
-    // Very small inference set; depends on your category chips
-    if(get("amenity")==="community_centre" || get("amenity")==="social_facility" || get("amenity")==="library") return "meeting";
-    if(get("leisure")==="playground" || get("amenity")==="school" || get("amenity")==="kindergarten") return "play";
-    if(get("amenity")==="bench" || get("amenity")==="shelter" || get("tourism")==="picnic_site") return "benches";
-    if(get("leisure")==="pitch" || get("leisure")==="sports_centre" || get("leisure")==="fitness_station") return "sports";
-    if(get("amenity")==="parking" || get("amenity")==="bicycle_parking") return "parking";
-    if(get("highway")==="crossing" || has("traffic_calming")) return "walk";
-    if(get("highway")==="street_lamp") return "safety";
-    return "meeting";
-  }
-
-  // Export/Import
-  function exportGeoJSON(){
-    const fc = {
-      type:"FeatureCollection",
-      features: pois.map(p => ({
-        type:"Feature",
-        geometry:{ type:"Point", coordinates:[p.lon, p.lat] },
-        properties:{
-          id: p.id,
-          kind: "workshop",
-          title: p.title,
-          type: p.type,
-          category: p.category,
-          tags: p.tags,
-          comment: p.comment,
-          urgency: p.urgency,
-          timeUse: p.timeUse,
-          before: p.before,
-          after: p.after,
-          osmTags: { ...(defaultOSMTagsForPOI(p)), ...(p.osmTags||{}) },
-          createdAt: p.createdAt
-          ,status: p.status
-          ,feedbackScore: p.feedbackScore
-          ,feedbackComment: p.feedbackComment
-          ,workshopDate: p.workshopDate
-        }
-      }))
-    };
-    const blob = new Blob([JSON.stringify(fc, null, 2)], { type:"application/geo+json" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "twekkelerveld_social_pois.geojson";
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 500);
-  }
-
-  function handleImportFile(e){
-    const f = e.target.files?.[0];
-    if(!f) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      try{
-        const j = JSON.parse(String(reader.result||""));
-        const imported = parseImported(j);
-        if(imported.length === 0) throw new Error("No POIs in file");
-        pois = [...imported, ...pois];
-        savePOIs();
-        refreshPOIMarkers();
-        renderList();
-        alert(`Imported ${imported.length} POIs.`);
-      }catch(err){
-        alert("Import failed. Please provide a GeoJSON FeatureCollection (points) exported from this tool.");
-      }finally{
-        el("fileImport").value = "";
-      }
-    };
-    reader.readAsText(f);
-  }
-
-  function parseImported(j){
-    const out = [];
-    if(j?.type === "FeatureCollection" && Array.isArray(j.features)){
-      for(const ft of j.features){
-        if(ft?.geometry?.type !== "Point") continue;
-        const [lon, lat] = ft.geometry.coordinates || [];
-        if(typeof lat !== "number" || typeof lon !== "number") continue;
-        const p = ft.properties || {};
-        out.push({
-          id: p.id || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())+Math.random()),
-          kind:"workshop",
-          type: p.type || "idea",
-          title: p.title || "Imported POI",
-          category: p.category || "meeting",
-          tags: Array.isArray(p.tags) ? p.tags : [],
-          comment: p.comment || "",
-          urgency: p.urgency || "low",
-          timeUse: p.timeUse || { weekday:true, weekend:false, day:true, evening:false },
-          before: p.before || { mode:"none", data:null },
-          after: p.after || { mode:"template", data:"pocket-park" },
-          osmTags: p.osmTags || {},
-          lat: +(+lat).toFixed(6),
-          lon: +(+lon).toFixed(6),
-          createdAt: p.createdAt || new Date().toISOString(),
-          status: p.status || 'captured',
-          feedbackScore: p.feedbackScore === undefined ? null : p.feedbackScore,
-          feedbackComment: p.feedbackComment || '',
-          workshopDate: p.workshopDate || ''
+        listNodesById.forEach((node, id) => {
+          node.classList.toggle("active", id === selectedId);
+          node.classList.toggle("hovered", id === hoveredId);
         });
       }
-    }
-    return out;
-  }
 
-  // Utils
-  function tagsToText(obj){
-    return Object.entries(obj||{})
-      .filter(([k,v]) => k && v !== undefined && v !== null && String(v).length)
-      .map(([k,v]) => `${k}=${String(v)}`)
-      .join("\n");
-  }
-  function parseKeyValue(text){
-    const out = {};
-    (text||"").split(/\r?\n/).map(l=>l.trim()).filter(Boolean).forEach(line=>{
-      const i = line.indexOf("=");
-      if(i <= 0) return;
-      const k = line.slice(0,i).trim();
-      const v = line.slice(i+1).trim();
-      if(!k || !v) return;
-      out[k]=v;
-    });
-    return out;
-  }
-  async function fileToDataURL(file, maxSide=1400){
-    const dataUrl = await new Promise((resolve,reject)=>{
-      const r = new FileReader();
-      r.onload = ()=>resolve(String(r.result));
-      r.onerror = reject;
-      r.readAsDataURL(file);
-    });
-    // downscale in-browser to keep localStorage workable
-    try{
-      const img = await new Promise((resolve,reject)=>{
-        const i = new Image();
-        i.onload = ()=>resolve(i);
-        i.onerror = reject;
-        i.src = dataUrl;
-      });
-      const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
-      const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
-      const c = document.createElement("canvas");
-      c.width = w; c.height = h;
-      const ctx = c.getContext("2d");
-      ctx.drawImage(img, 0, 0, w, h);
-      return c.toDataURL("image/jpeg", 0.85);
-    }catch{
-      return dataUrl;
-    }
-  }
-  function escapeHtml(s){ return String(s||"").replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
-  function escapeAttr(s){ return escapeHtml(s).replace(/\n/g," "); }
-  function shorten(s,n){ s=String(s||""); return s.length>n ? s.slice(0,n-1)+"…" : s; }
+      function renderList() {
+        const visible = getVisiblePois();
+        els.poiList.innerHTML = "";
+        listNodesById = new Map();
 
-  function openGoogleMaps(latlng){
-    const {lat,lng} = {lat: latlng.lat, lng: latlng.lng};
-    window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, "_blank");
-  }
-  function openStreetView(latlng){
-    const {lat,lng} = {lat: latlng.lat, lng: latlng.lng};
-    window.open(`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}`, "_blank");
-  }
-
-  // Given a POI and a segment name ('before' or 'after'), return a best
-  // available image URL to display in the compare strip. If no image is
-  // available an empty string is returned. Template selections are resolved
-  // against the SOLUTION_TEMPLATES array to locate local assets.
-  function getPOIImageSrc(p, segment){
-    const obj = p && p[segment];
-    if(!obj || !obj.mode) return "";
-    if(obj.mode === "none") return "";
-    // For URL or uploaded data we return the data directly.
-    if(obj.mode === "url" || obj.mode === "upload") return obj.data || "";
-    // Template: look up the local image.
-    if(obj.mode === "template"){
-      const tpl = SOLUTION_TEMPLATES.find(t => t.id === obj.data);
-      return tpl && tpl.img ? tpl.img : "";
-    }
-    // Fallback: assume data field contains a usable URL or data URI.
-    return obj.data || "";
-  }
-
-  // Toggle the pinned state of a POI. Only workshop POIs can be pinned.
-  function togglePin(kind, id){
-    if(kind !== 'poi') return;
-    const idx = pinned.indexOf(id);
-    if(idx >= 0) pinned.splice(idx,1); else {
-      // Limit to a maximum of 4 items to avoid clutter
-      if(pinned.length >= 4) pinned.shift();
-      pinned.push(id);
-    }
-    renderCompareStrip();
-    renderList();
-  }
-
-  // Render the compare strip showing the currently pinned POIs. When no items
-  // are pinned the strip is hidden. Each item shows the title, category and
-  // thumbnails of the before and after images. Clicking an item selects it.
-  function renderCompareStrip(){
-    const strip = document.getElementById('compareStrip');
-    if(!strip) return;
-    strip.innerHTML = '';
-    if(pinned.length === 0){ strip.style.display = 'none'; return; }
-    strip.style.display = 'flex';
-    pinned.forEach(id => {
-      const p = pois.find(x => x.id === id);
-      if(!p) return;
-      const item = document.createElement('div');
-      item.className = 'compareItem';
-      const close = document.createElement('div');
-      close.className = 'close';
-      close.textContent = '✕';
-      close.onclick = (e) => {
-        e.stopPropagation();
-        pinned = pinned.filter(pid => pid !== id);
-        renderCompareStrip();
-        renderList();
-      };
-      const h4 = document.createElement('h4'); h4.textContent = p.title || 'POI';
-      const meta = document.createElement('div'); meta.className = 'meta'; meta.textContent = labelOf('category', p.category);
-      const beforeImg = document.createElement('img'); beforeImg.src = getPOIImageSrc(p, 'before') || ''; beforeImg.alt = 'before';
-      const afterImg = document.createElement('img'); afterImg.src = getPOIImageSrc(p, 'after') || ''; afterImg.alt = 'after';
-      item.onclick = () => selectPOI(p.id);
-      item.appendChild(close);
-      item.appendChild(h4);
-      item.appendChild(meta);
-      item.appendChild(beforeImg);
-      item.appendChild(afterImg);
-      strip.appendChild(item);
-    });
-    // When at least two items are pinned, show a button to open the compare view.
-    if(pinned.length >= 2){
-      const cmpBtn = document.createElement('button');
-      cmpBtn.className = 'btn small primary';
-      cmpBtn.textContent = 'Compare';
-      cmpBtn.onclick = (e) => {
-        e.stopPropagation();
-        openCompareModal();
-      };
-      strip.appendChild(cmpBtn);
-    }
-  }
-
-  // Fetch a context summary for a given coordinate. The summary includes a
-  // reverse‑geocoded address and distances to common amenities (park/playground,
-  // benches, parking, crossings) as well as landuse classification. The
-  // results are appended as text nodes into the provided holder element.
-  async function fetchContext(lat, lon, holder){
-    try{
-      holder.innerHTML = '<div class="rightHint">Loading…</div>';
-      let address = '';
-      try{
-        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}`);
-        if(res.ok){
-          const j = await res.json();
-          address = j.display_name || '';
+        if (!visible.length) {
+          const empty = document.createElement("div");
+          empty.className = "emptyState";
+          empty.textContent = state.pois.length
+            ? "No POIs match the current filters."
+            : "No POIs yet. Click Add POI and then click on the map.";
+          els.poiList.appendChild(empty);
+          return;
         }
-      }catch(_e){ address = ''; }
-      const radius = 100; // metres
-      const query = `[out:json][timeout:20];(node(around:${radius},${lat},${lon})[leisure=park];node(around:${radius},${lat},${lon})[leisure=playground];node(around:${radius},${lat},${lon})[amenity=bench];node(around:${radius},${lat},${lon})[amenity=parking];node(around:${radius},${lat},${lon})[highway=crossing];way(around:${radius},${lat},${lon})[landuse];node(around:${radius},${lat},${lon})[landuse];);out center tags;`;
-      let data = null;
-      try{ data = await overpassRequest(query); }catch(_err){ data = null; }
-      const features = (data?.elements || []).map(el => {
-        const lat2 = el.type === 'node' ? el.lat : el.center?.lat;
-        const lon2 = el.type === 'node' ? el.lon : el.center?.lon;
-        const tags = el.tags || {};
-        const dist = (typeof lat2 === 'number' && typeof lon2 === 'number') ? Math.round(distanceMeters(lat, lon, lat2, lon2)) : null;
-        return { dist, tags };
-      });
-      let nearestPark = Infinity, nearestBench = Infinity, nearestParking = Infinity, nearestCrossing = Infinity;
-      let landuse = null;
-      for(const f of features){
-        const t = f.tags;
-        if(f.dist == null) continue;
-        if(t.leisure === 'park' || t.leisure === 'playground'){
-          if(f.dist < nearestPark) nearestPark = f.dist;
-        }
-        if(t.amenity === 'bench'){
-          if(f.dist < nearestBench) nearestBench = f.dist;
-        }
-        if(t.amenity === 'parking'){
-          if(f.dist < nearestParking) nearestParking = f.dist;
-        }
-        if(t.highway === 'crossing'){
-          if(f.dist < nearestCrossing) nearestCrossing = f.dist;
-        }
-        if(!landuse && t.landuse){ landuse = t.landuse; }
+
+        visible.forEach(poi => {
+          const cat = getCategory(poi.categoryId);
+          const priority = getPriority(poi.priority);
+          const card = document.createElement("div");
+          card.className = "poiCard" + (selectedId === poi.id ? " active" : "");
+          card.innerHTML = `
+            <div class="poiHead">
+              <div class="poiIconBubble" style="background:${priority.color};">${cat.icon}</div>
+              <div style="min-width:0; flex:1;">
+                <p class="poiName">${escapeHtml(poi.title || "Untitled POI")}</p>
+                <div class="poiMeta">${escapeHtml(cat.label)} · ${priority.label}</div>
+              </div>
+            </div>
+            <div class="badges">
+              ${poi.tags.slice(0, 3).map(tag => `<span class="badge">${escapeHtml(tag)}</span>`).join("")}
+            </div>
+            <div class="stats">
+              <span>💬 ${poi.comments.length}</span>
+              <span>🖼️ ${poi.images.length}</span>
+            </div>
+          `;
+
+          card.addEventListener("mouseenter", () => {
+            hoveredId = poi.id;
+            const marker = markersById.get(poi.id);
+            if (marker) marker.openTooltip();
+            applyHoverState();
+          });
+          card.addEventListener("mouseleave", () => {
+            hoveredId = null;
+            const marker = markersById.get(poi.id);
+            if (marker && selectedId !== poi.id) marker.closeTooltip();
+            applyHoverState();
+          });
+          card.addEventListener("click", () => {
+            selectedId = poi.id;
+            renderAll();
+          });
+
+          els.poiList.appendChild(card);
+          listNodesById.set(poi.id, card);
+        });
+
+        applyHoverState();
       }
-      const lines = [];
-      if(address) lines.push('Address: ' + address);
-      if(Number.isFinite(nearestPark)) lines.push('Nearest park/playground: ' + nearestPark + ' m');
-      if(Number.isFinite(nearestBench)) lines.push('Nearest bench: ' + nearestBench + ' m');
-      if(Number.isFinite(nearestParking)) lines.push('Nearest parking: ' + nearestParking + ' m');
-      if(Number.isFinite(nearestCrossing)) lines.push('Nearest crossing: ' + nearestCrossing + ' m');
-      if(landuse) lines.push('Landuse: ' + landuse);
-      if(lines.length === 0) lines.push('No nearby context features found');
-      holder.innerHTML = lines.map(l => `<div>${escapeHtml(l)}</div>`).join('');
-    }catch(e){
-      holder.innerHTML = '<div class="rightHint">Could not load context.</div>';
-    }
-  }
 
-  // Compute the great‑circle distance between two coordinates using the
-  // Haversine formula. Returns metres.
-  function distanceMeters(lat1, lon1, lat2, lon2){
-    const R = 6371000;
-    const φ1 = lat1 * Math.PI/180;
-    const φ2 = lat2 * Math.PI/180;
-    const Δφ = (lat2 - lat1) * Math.PI/180;
-    const Δλ = (lon2 - lon1) * Math.PI/180;
-    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ/2) * Math.sin(Δλ/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  }
+      function renderDetail() {
+        const poi = state.pois.find(p => p.id === selectedId);
+        els.zoomBtn.disabled = !poi;
+        els.deleteBtn.disabled = !poi;
 
-  /*
-   * Display the comparison modal for pinned POIs. Builds a side‑by‑side view
-   * summarising key fields of each pinned item and providing a simple 1–5
-   * scoring control. The map and other UI remain visible behind the modal.
-   */
-  function openCompareModal(){
-    const modal = document.getElementById('compareModal');
-    if(!modal) return;
-    const table = document.getElementById('compareTable');
-    if(!table) return;
-    table.innerHTML = '';
-    // Build columns for each pinned workshop POI
-    const toCompare = pinned.map(id => pois.find(p => p.id === id)).filter(Boolean);
-    toCompare.forEach(p => {
-      const col = document.createElement('div');
-      col.className = 'compareColumn';
-      const title = document.createElement('h3');
-      title.textContent = p.title || 'POI';
-      col.appendChild(title);
-      // Helper to add a row
-      const addRow = (label, value) => {
-        const lab = document.createElement('div'); lab.className = 'compareRowLabel'; lab.textContent = label;
-        const val = document.createElement('div'); val.className = 'compareRowValue'; val.textContent = value;
-        col.appendChild(lab);
-        col.appendChild(val);
-      };
-      addRow('Type', labelOf('type', p.type));
-      addRow('Category', labelOf('category', p.category));
-      addRow('Urgency', labelOf('urgency', p.urgency));
-      addRow('Status', labelOf('status', p.status));
-      addRow('Tags', (p.tags && p.tags.length > 0) ? p.tags.join(', ') : '–');
-      addRow('Comment', p.comment ? p.comment : '–');
-      // Score selector
-      const scoreLabel = document.createElement('div'); scoreLabel.className = 'compareRowLabel'; scoreLabel.textContent = 'Score (1–5)';
-      const scoreSelect = document.createElement('select'); scoreSelect.className = 'scoreInput';
-      for(let i=1;i<=5;i++){
-        const opt = document.createElement('option'); opt.value = String(i); opt.textContent = String(i);
-        // Preselect based on feedbackScore if approximate
-        if(p.feedbackScore !== null && p.feedbackScore !== undefined){
-          const approx = Math.round((p.feedbackScore/100)*5);
-          if(approx === i) opt.selected = true;
+        if (!poi) {
+          els.detailTitle.textContent = "POI details";
+          els.detailSub.textContent = "Click a marker or a card to open it in the sidebar.";
+          els.detailBody.className = "detailEmpty";
+          els.detailBody.innerHTML = `
+            This version focuses on the requested status quo workflow only:
+            category + icon, priority, tags, comments, images with title and description,
+            simple image annotation, hover overview, list filtering and CSV export.
+            <div class="toolbarHint">Mode: ${APP_MODE} · Asset root reserved as ${ASSET_ROOT}</div>
+          `;
+          return;
         }
-        scoreSelect.appendChild(opt);
+
+        const category = getCategory(poi.categoryId);
+        const priority = getPriority(poi.priority);
+
+        els.detailTitle.textContent = poi.title || "Untitled POI";
+        els.detailSub.textContent = `${category.label} · ${priority.label} · ${poi.lat.toFixed(5)}, ${poi.lon.toFixed(5)}`;
+        els.detailBody.className = "";
+        els.detailBody.innerHTML = "";
+
+        const wrap = document.createElement("div");
+
+        const topInfo = document.createElement("div");
+        topInfo.className = "summaryBox";
+        topInfo.innerHTML = `
+          <strong>Hover summary fields</strong><br>
+          Title · Category · Urgency · Number of comments · Number of images
+        `;
+        wrap.appendChild(topInfo);
+
+        wrap.appendChild(makeField("Title", textInput(poi.title, value => {
+          poi.title = value || "Untitled POI";
+          saveState();
+          renderAll();
+        })));
+
+        wrap.appendChild(makeField("Summary / note", textArea(poi.summary, value => {
+          poi.summary = value;
+          saveState();
+          renderList();
+        })));
+
+        const metaGrid = document.createElement("div");
+        metaGrid.className = "metaGrid";
+
+        metaGrid.appendChild(makeField("Category", categorySelect(poi.categoryId, value => {
+          poi.categoryId = value;
+          saveState();
+          renderAll();
+        }), true));
+
+        metaGrid.appendChild(makeField("Priority", prioritySelect(poi.priority, value => {
+          poi.priority = value;
+          saveState();
+          renderAll();
+        }), true));
+
+        wrap.appendChild(metaGrid);
+
+        wrap.appendChild(renderCategoryCreator(poi));
+        wrap.appendChild(renderTagEditor(poi));
+        wrap.appendChild(renderCommentsEditor(poi));
+        wrap.appendChild(renderImagesEditor(poi));
+
+        const footer = document.createElement("div");
+        footer.className = "footerNote";
+        footer.innerHTML = `
+          <strong>Marker logic</strong>: standard droplet marker, category icon in the circle, priority colour on the marker body.
+          <br><strong>Priority colours</strong>: green = low, yellow = medium, orange = high, red = critical.
+        `;
+        wrap.appendChild(footer);
+
+        els.detailBody.appendChild(wrap);
       }
-      scoreSelect.onchange = () => {
-        const v = parseInt(scoreSelect.value, 10);
-        p.feedbackScore = v * 20; // map to 0–100 scale
-        savePOIs();
-        // Re-render list to reflect updated feedbackScore
-        renderList();
-      };
-      col.appendChild(scoreLabel);
-      col.appendChild(scoreSelect);
-      table.appendChild(col);
-    });
-    modal.style.display = 'flex';
-  }
 
-  // Hook header buttons to selection
-  function updateExternalButtons(){
-    if(!selected?.latlng) return;
-    el("btnOpenMaps").onclick = () => openGoogleMaps(selected.latlng);
-    el("btnOpenStreet").onclick = () => openStreetView(selected.latlng);
-  }
-  map.on("click", updateExternalButtons);
-
-  // Export PDF button
-  const btnExportPDF = el("btnExportPDF");
-  if(btnExportPDF){
-    btnExportPDF.onclick = () => exportPDF();
-  }
-
-  // Convert remote URL to data URL (for PDF export)
-  async function urlToDataURL(url){
-    try{
-      const res = await fetch(url);
-      const blob = await res.blob();
-      return await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
-    }catch{
-      return null;
-    }
-
-
-// Normalize any image data URL to JPEG so jsPDF can embed it reliably.
-// This also flattens transparent PNGs onto a white background.
-async function normalizeImageDataForPDF(dataUrl, maxSide=1600){
-  if(!dataUrl) return null;
-  if(/^data:image\/jpeg/i.test(dataUrl)) return dataUrl;
-  return await new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => {
-      try{
-        const scale = Math.min(1, maxSide / Math.max(img.width || 1, img.height || 1));
-        const w = Math.max(1, Math.round((img.width || 1) * scale));
-        const h = Math.max(1, Math.round((img.height || 1) * scale));
-        const c = document.createElement('canvas');
-        c.width = w; c.height = h;
-        const ctx = c.getContext('2d');
-        // White background for transparent images
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, w, h);
-        ctx.drawImage(img, 0, 0, w, h);
-        resolve(c.toDataURL('image/jpeg', 0.85));
-      }catch{
-        resolve(dataUrl);
+      function makeField(label, contentNode, compact = false) {
+        const section = document.createElement("div");
+        section.className = "section";
+        const lbl = document.createElement("label");
+        lbl.className = "sectionLabel";
+        lbl.textContent = label;
+        section.appendChild(lbl);
+        if (compact) section.style.marginTop = "0";
+        section.appendChild(contentNode);
+        return section;
       }
-    };
-    img.onerror = () => resolve(dataUrl);
-    img.src = dataUrl;
-  });
-}
 
-  }
-
-  // Export PDF with list of POIs and before/after images
-  // Export PDF with list of POIs and before/after images. If the external jsPDF
-  // library is unavailable (e.g. when the page is opened via file:// and remote
-  // scripts are blocked), a fallback implementation generates a very simple
-  // PDF containing only text using a minimal PDF generator defined below.
-  async function exportPDF(){
-    try{
-      // Ensure the jsPDF library is available. If not, defer to the fallback
-      // implementation below.
-      if(!window.jspdf || !window.jspdf.jsPDF) throw new Error('jsPDF unavailable');
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
-
-      /*--------------------------------------------------------------------
-       * Cover page
-       * Create a professional cover with a title and generation date. The
-       * report is intended to be shared with stakeholders, so a polished
-       * introduction helps set the tone. Centre the title and subtitle on
-       * the page. Add a bottom border for a subtle design element.
-       */
-      doc.setFontSize(22);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Community POI Report', 105, 60, { align:'center' });
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'normal');
-      const dateStr = new Date().toLocaleDateString();
-      doc.text(`Generated on ${dateStr}`, 105, 70, { align:'center' });
-      // Decorative horizontal line
-      doc.setDrawColor(100);
-      doc.setLineWidth(0.2);
-      doc.line(40, 80, 170, 80);
-      doc.addPage();
-
-      /*--------------------------------------------------------------------
-       * Summary page
-       * Aggregate counts by category, urgency and status, and highlight the
-       * top tags. This provides a quick overview of the data before
-       * readers dive into individual entries.
-       */
-      // Compute counts
-      const categoryCounts = {};
-      const urgencyCounts = {};
-      const statusCounts = {};
-      const tagCounts = {};
-      for(const p of pois){
-        categoryCounts[p.category] = (categoryCounts[p.category] || 0) + 1;
-        urgencyCounts[p.urgency] = (urgencyCounts[p.urgency] || 0) + 1;
-        statusCounts[p.status] = (statusCounts[p.status] || 0) + 1;
-        (p.tags || []).forEach(t => { tagCounts[t] = (tagCounts[t] || 0) + 1; });
+      function textInput(value, onChange) {
+        const input = document.createElement("input");
+        input.className = "input";
+        input.value = value || "";
+        input.addEventListener("input", () => onChange(input.value));
+        return input;
       }
-      // Header
-      doc.setFontSize(18);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Summary', 10, 20);
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'normal');
-      let sy = 30;
-      // Category counts
-      doc.setFont('helvetica', 'bold');
-      doc.text('By category:', 10, sy);
-      sy += 6;
-      doc.setFont('helvetica', 'normal');
-      Object.entries(categoryCounts).sort((a,b) => b[1] - a[1]).forEach(([k,v]) => {
-        doc.text(`${labelOf('category', k)}: ${v}`, 14, sy);
-        sy += 5;
-      });
-      sy += 5;
-      doc.setFont('helvetica', 'bold');
-      doc.text('By urgency:', 10, sy);
-      sy += 6;
-      doc.setFont('helvetica', 'normal');
-      Object.entries(urgencyCounts).sort((a,b) => b[1] - a[1]).forEach(([k,v]) => {
-        doc.text(`${labelOf('urgency', k)}: ${v}`, 14, sy);
-        sy += 5;
-      });
-      sy += 5;
-      doc.setFont('helvetica', 'bold');
-      doc.text('By status:', 10, sy);
-      sy += 6;
-      doc.setFont('helvetica', 'normal');
-      Object.entries(statusCounts).sort((a,b) => b[1] - a[1]).forEach(([k,v]) => {
-        doc.text(`${labelOf('status', k)}: ${v}`, 14, sy);
-        sy += 5;
-      });
-      // Top tags (show up to five)
-      const topTags = Object.entries(tagCounts).sort((a,b) => b[1] - a[1]).slice(0, 5);
-      if(topTags.length){
-        sy += 5;
-        doc.setFont('helvetica', 'bold');
-        doc.text('Top tags:', 10, sy);
-        sy += 6;
-        doc.setFont('helvetica', 'normal');
-        topTags.forEach(([tag,count]) => {
-          doc.text(`${tag}: ${count}`, 14, sy);
-          sy += 5;
+
+      function textArea(value, onChange, placeholder = "") {
+        const area = document.createElement("textarea");
+        area.className = "textarea";
+        area.placeholder = placeholder;
+        area.value = value || "";
+        area.addEventListener("input", () => onChange(area.value));
+        return area;
+      }
+
+      function categorySelect(value, onChange) {
+        const select = document.createElement("select");
+        select.className = "select";
+        state.categories.forEach(cat => select.add(new Option(`${cat.icon} ${cat.label}`, cat.id)));
+        select.value = value;
+        select.addEventListener("change", () => onChange(select.value));
+        return select;
+      }
+
+      function prioritySelect(value, onChange) {
+        const select = document.createElement("select");
+        select.className = "select";
+        PRIORITIES.forEach(item => select.add(new Option(item.label, item.id)));
+        select.value = value;
+        select.addEventListener("change", () => onChange(select.value));
+        return select;
+      }
+
+      function renderCategoryCreator(poi) {
+        const section = document.createElement("div");
+        section.className = "section";
+
+        const label = document.createElement("span");
+        label.className = "sectionLabel";
+        label.textContent = "Create custom category";
+        section.appendChild(label);
+
+        const nameInput = document.createElement("input");
+        nameInput.className = "input";
+        nameInput.placeholder = "New category name";
+        section.appendChild(nameInput);
+
+        let chosenIcon = "📝";
+        const iconGrid = document.createElement("div");
+        iconGrid.className = "iconPicker";
+        ICON_LIBRARY.forEach(icon => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "iconChoice" + (icon === chosenIcon ? " active" : "");
+          btn.textContent = icon;
+          btn.addEventListener("click", () => {
+            chosenIcon = icon;
+            [...iconGrid.children].forEach(child => child.classList.toggle("active", child.textContent === icon));
+          });
+          iconGrid.appendChild(btn);
+        });
+        section.appendChild(iconGrid);
+
+        const addBtn = document.createElement("button");
+        addBtn.type = "button";
+        addBtn.className = "btn secondary";
+        addBtn.style.marginTop = "10px";
+        addBtn.textContent = "Add category and use it";
+        addBtn.addEventListener("click", () => {
+          const labelText = nameInput.value.trim();
+          if (!labelText) {
+            alert("Enter a category name first.");
+            return;
+          }
+          const slug = slugify(labelText);
+          let existing = state.categories.find(cat => cat.id === slug);
+          if (!existing) {
+            existing = { id: slug, label: labelText, icon: chosenIcon };
+            state.categories.push(existing);
+          }
+          poi.categoryId = existing.id;
+          saveState();
+          buildFilterOptions();
+          renderAll();
+        });
+        section.appendChild(addBtn);
+
+        const note = document.createElement("div");
+        note.className = "hint";
+        note.textContent = 'A "Note" category is included by default.';
+        section.appendChild(note);
+        return section;
+      }
+
+      function renderTagEditor(poi) {
+        const section = document.createElement("div");
+        section.className = "section";
+
+        const label = document.createElement("span");
+        label.className = "sectionLabel";
+        label.textContent = "Tags";
+        section.appendChild(label);
+
+        const tagRow = document.createElement("div");
+        tagRow.className = "row";
+
+        const input = document.createElement("input");
+        input.className = "input";
+        input.placeholder = "Type a tag and press Add";
+        input.style.flex = "1 1 200px";
+        tagRow.appendChild(input);
+
+        const add = document.createElement("button");
+        add.type = "button";
+        add.className = "btn secondary";
+        add.textContent = "Add tag";
+        add.addEventListener("click", () => {
+          const value = input.value.trim();
+          if (!value) return;
+          if (!poi.tags.includes(value)) poi.tags.push(value);
+          input.value = "";
+          saveState();
+          renderAll();
+        });
+        tagRow.appendChild(add);
+        section.appendChild(tagRow);
+
+        const tagsWrap = document.createElement("div");
+        tagsWrap.className = "tagsWrap";
+        if (!poi.tags.length) {
+          const empty = document.createElement("div");
+          empty.className = "hint";
+          empty.textContent = "No tags yet.";
+          tagsWrap.appendChild(empty);
+        } else {
+          poi.tags.forEach(tag => {
+            const el = document.createElement("span");
+            el.className = "tag";
+            el.innerHTML = `${escapeHtml(tag)} <button type="button" aria-label="Remove tag">×</button>`;
+            el.querySelector("button").addEventListener("click", () => {
+              poi.tags = poi.tags.filter(t => t !== tag);
+              saveState();
+              renderAll();
+            });
+            tagsWrap.appendChild(el);
+          });
+        }
+        section.appendChild(tagsWrap);
+        return section;
+      }
+
+      function renderCommentsEditor(poi) {
+        const section = document.createElement("div");
+        section.className = "section";
+
+        const label = document.createElement("span");
+        label.className = "sectionLabel";
+        label.textContent = "Comments / notes";
+        section.appendChild(label);
+
+        const area = document.createElement("textarea");
+        area.className = "textarea";
+        area.placeholder = "Add a comment or note";
+        section.appendChild(area);
+
+        const addBtn = document.createElement("button");
+        addBtn.type = "button";
+        addBtn.className = "btn secondary";
+        addBtn.style.marginTop = "8px";
+        addBtn.textContent = "Add comment";
+        addBtn.addEventListener("click", () => {
+          const text = area.value.trim();
+          if (!text) return;
+          poi.comments.unshift({ id: uid(), text, createdAt: new Date().toISOString() });
+          area.value = "";
+          saveState();
+          renderAll();
+        });
+        section.appendChild(addBtn);
+
+        const list = document.createElement("div");
+        list.style.marginTop = "10px";
+        if (!poi.comments.length) {
+          const empty = document.createElement("div");
+          empty.className = "hint";
+          empty.textContent = "No comments yet.";
+          list.appendChild(empty);
+        } else {
+          poi.comments.forEach(comment => {
+            const item = document.createElement("div");
+            item.className = "commentItem";
+            item.innerHTML = `
+              <div class="commentHead">
+                <strong>${formatDate(comment.createdAt)}</strong>
+                <button class="btn danger" type="button" style="padding:6px 10px;">Remove</button>
+              </div>
+            `;
+            const text = document.createElement("textarea");
+            text.className = "textarea";
+            text.style.minHeight = "70px";
+            text.value = comment.text;
+            text.addEventListener("input", () => {
+              comment.text = text.value;
+              saveState();
+              renderList();
+            });
+            item.appendChild(text);
+            item.querySelector("button").addEventListener("click", () => {
+              poi.comments = poi.comments.filter(c => c.id !== comment.id);
+              saveState();
+              renderAll();
+            });
+            list.appendChild(item);
+          });
+        }
+        section.appendChild(list);
+        return section;
+      }
+
+      function renderImagesEditor(poi) {
+        const section = document.createElement("div");
+        section.className = "section";
+
+        const label = document.createElement("span");
+        label.className = "sectionLabel";
+        label.textContent = "Images";
+        section.appendChild(label);
+
+        const controls = document.createElement("div");
+        controls.className = "row";
+
+        const fileInput = document.createElement("input");
+        fileInput.type = "file";
+        fileInput.accept = "image/*";
+        fileInput.className = "input";
+        fileInput.style.flex = "1 1 220px";
+
+        fileInput.addEventListener("change", async () => {
+          const file = fileInput.files && fileInput.files[0];
+          if (!file) return;
+          await addImageToPoi(poi, file);
+          fileInput.value = "";
+        });
+        controls.appendChild(fileInput);
+
+        const pasteBtn = document.createElement("button");
+        pasteBtn.type = "button";
+        pasteBtn.className = "btn secondary";
+        pasteBtn.textContent = "Paste image";
+        pasteBtn.addEventListener("click", async () => {
+          try {
+            const items = await navigator.clipboard.read();
+            for (const item of items) {
+              const type = item.types.find(t => t.startsWith("image/"));
+              if (type) {
+                const blob = await item.getType(type);
+                await addImageToPoi(poi, new File([blob], "clipboard-image.png", { type }));
+                return;
+              }
+            }
+            alert("No image found on the clipboard.");
+          } catch (err) {
+            alert("Clipboard paste is blocked here. Use Ctrl/Cmd+V while the page is open or choose a file.");
+          }
+        });
+        controls.appendChild(pasteBtn);
+        section.appendChild(controls);
+
+        const note = document.createElement("div");
+        note.className = "hint";
+        note.textContent = "After upload or paste, the prototype asks for image title and description.";
+        section.appendChild(note);
+
+        const list = document.createElement("div");
+        list.style.marginTop = "10px";
+        if (!poi.images.length) {
+          const empty = document.createElement("div");
+          empty.className = "hint";
+          empty.textContent = "No images yet.";
+          list.appendChild(empty);
+        } else {
+          poi.images.forEach(image => {
+            const card = document.createElement("div");
+            card.className = "imageCard";
+
+            card.innerHTML = `
+              <div class="imageHead">
+                <strong>${escapeHtml(image.title || "Image")}</strong>
+                <div class="row">
+                  <button class="btn secondary" type="button" data-action="annotate">Annotate</button>
+                  <button class="btn danger" type="button" data-action="remove">Remove</button>
+                </div>
+              </div>
+            `;
+
+            const img = document.createElement("img");
+            img.className = "imageThumb";
+            img.src = image.dataUrl;
+            img.alt = image.title || "POI image";
+            card.appendChild(img);
+
+            const meta = document.createElement("div");
+            meta.className = "metaGrid";
+            meta.style.marginTop = "10px";
+
+            const titleField = makeField("Image title", textInput(image.title, value => {
+              image.title = value;
+              saveState();
+              renderList();
+            }), true);
+            const descField = makeField("Image description", textArea(image.description, value => {
+              image.description = value;
+              saveState();
+            }), true);
+
+            meta.appendChild(titleField);
+            meta.appendChild(descField);
+            card.appendChild(meta);
+
+            card.querySelector('[data-action="remove"]').addEventListener("click", () => {
+              poi.images = poi.images.filter(imgItem => imgItem.id !== image.id);
+              saveState();
+              renderAll();
+            });
+            card.querySelector('[data-action="annotate"]').addEventListener("click", () => {
+              openAnnotator(poi.id, image.id);
+            });
+
+            const note = document.createElement("div");
+            note.className = "annotationNote";
+            note.textContent = "Annotation tools: circles, arrows, text, basic colours.";
+            card.appendChild(note);
+
+            list.appendChild(card);
+          });
+        }
+
+        section.appendChild(list);
+        return section;
+      }
+
+      async function addImageToPoi(poi, file) {
+        const dataUrl = await readFileAsDataUrl(file);
+        const title = prompt("Image title", file.name.replace(/\.[^.]+$/, "") || "Image") || "Image";
+        const description = prompt("Image description", "") || "";
+        poi.images.push({
+          id: uid(),
+          title: title.trim() || "Image",
+          description: description.trim(),
+          dataUrl
+        });
+        saveState();
+        renderAll();
+      }
+
+      function readFileAsDataUrl(file) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
         });
       }
-      doc.addPage();
 
-      /*--------------------------------------------------------------------
-       * Individual POI pages
-       * Each point of interest gets its own page with a clear header, the
-       * key attributes and a side‑by‑side comparison of before and after
-       * images. Lines separate sections for better readability. If
-       * necessary, any missing images are replaced with a placeholder note.
-       */
-      for(let i = 0; i < pois.length; i++){
-        const p = pois[i];
-        // Title
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(16);
-        doc.text(p.title || 'Untitled POI', 10, 20);
-        // Basic details
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(11);
-        let dy = 28;
-        const detailLines = [];
-        detailLines.push(`Category: ${labelOf('category', p.category)}`);
-        detailLines.push(`Type: ${labelOf('type', p.type)}`);
-        detailLines.push(`Urgency: ${labelOf('urgency', p.urgency)}`);
-        detailLines.push(`Location: ${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`);
-        if(p.tags && p.tags.length) detailLines.push(`Tags: ${p.tags.join(', ')}`);
-        if(p.comment) detailLines.push(`Comment: ${p.comment}`);
-        if(p.status) detailLines.push(`Status: ${labelOf('status', p.status)}`);
-        if(p.feedbackScore !== null && p.feedbackScore !== undefined) detailLines.push(`Feedback score: ${p.feedbackScore}`);
-        if(p.feedbackComment) detailLines.push(`Feedback comment: ${p.feedbackComment}`);
-        if(p.workshopDate) detailLines.push(`Workshop date: ${p.workshopDate}`);
-        detailLines.forEach(line => {
-          // Wrap long lines manually if they exceed 90 characters
-          const lines = doc.splitTextToSize(line, 190);
-          lines.forEach(l => {
-            doc.text(l, 10, dy);
-            dy += 5;
+      function createPoi(latlng) {
+        const poi = normalizePoi({
+          id: uid(),
+          title: "New POI",
+          summary: "",
+          lat: latlng.lat,
+          lon: latlng.lng,
+          categoryId: "note",
+          priority: "medium",
+          tags: [],
+          comments: [],
+          images: [],
+          createdAt: new Date().toISOString()
+        });
+        state.pois.unshift(poi);
+        selectedId = poi.id;
+        saveState();
+        toggleAddMode(false);
+        renderAll();
+      }
+
+      function deleteSelectedPoi() {
+        if (!selectedId) return;
+        const poi = state.pois.find(p => p.id === selectedId);
+        if (!poi) return;
+        if (!confirm(`Delete "${poi.title}"?`)) return;
+        state.pois = state.pois.filter(p => p.id !== selectedId);
+        selectedId = null;
+        saveState();
+        renderAll();
+      }
+
+      function renderAll() {
+        buildFilterOptions();
+        renderMarkers();
+        renderList();
+        renderDetail();
+      }
+
+      function zoomToSelected() {
+        const poi = state.pois.find(p => p.id === selectedId);
+        if (!poi) return;
+        map.flyTo([poi.lat, poi.lon], 18, { duration: 0.5 });
+        const marker = markersById.get(poi.id);
+        if (marker) marker.openTooltip();
+      }
+
+      function exportCsv() {
+        const rows = [
+          ["title","category","priority","tags","summary","comment_count","comments","image_count","image_titles","lat","lon","created_at"]
+        ];
+        state.pois.forEach(poi => {
+          rows.push([
+            poi.title,
+            getCategory(poi.categoryId).label,
+            getPriority(poi.priority).label,
+            poi.tags.join("|"),
+            poi.summary,
+            String(poi.comments.length),
+            poi.comments.map(c => c.text.replace(/\s+/g, " ").trim()).join(" | "),
+            String(poi.images.length),
+            poi.images.map(img => img.title).join(" | "),
+            String(poi.lat),
+            String(poi.lon),
+            poi.createdAt
+          ]);
+        });
+        const csv = rows.map(row => row.map(csvEscape).join(",")).join("\n");
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = APP_MODE === "cloudflare" ? "poi-export-cloudflare.csv" : "poi-export-local.csv";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      }
+
+      function csvEscape(value) {
+        const text = String(value ?? "");
+        return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+      }
+
+      function slugify(text) {
+        return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || uid();
+      }
+
+      function formatDate(iso) {
+        const date = new Date(iso);
+        return date.toLocaleString();
+      }
+
+      function escapeHtml(text) {
+        return String(text ?? "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      map.on("click", (event) => {
+        if (!addMode) return;
+        createPoi(event.latlng);
+      });
+
+      els.addPoiBtn.addEventListener("click", () => toggleAddMode());
+      els.resetViewBtn.addEventListener("click", () => map.fitBounds(STUDY_AREA.bounds, { padding: [14, 14] }));
+      els.exportCsvBtn.addEventListener("click", exportCsv);
+      els.zoomBtn.addEventListener("click", zoomToSelected);
+      els.deleteBtn.addEventListener("click", deleteSelectedPoi);
+
+      ["input","change"].forEach(evt => {
+        els.searchInput.addEventListener(evt, renderAll);
+        els.categoryFilter.addEventListener(evt, renderAll);
+        els.priorityFilter.addEventListener(evt, renderAll);
+        els.sortSelect.addEventListener(evt, renderAll);
+      });
+
+      document.addEventListener("paste", async (event) => {
+        if (!selectedId) return;
+        const items = event.clipboardData?.items || [];
+        const imageItem = [...items].find(item => item.type.startsWith("image/"));
+        if (!imageItem) return;
+        event.preventDefault();
+        const poi = state.pois.find(p => p.id === selectedId);
+        if (!poi) return;
+        const file = imageItem.getAsFile();
+        if (file) await addImageToPoi(poi, file);
+      });
+
+      function initAnnotatorTools() {
+        const colors = ["#ef4444","#22c55e","#3b82f6","#f59e0b","#ffffff"];
+        els.colorTools.innerHTML = "";
+        colors.forEach(color => {
+          const dot = document.createElement("button");
+          dot.type = "button";
+          dot.className = "colorDot";
+          dot.style.background = color;
+          dot.addEventListener("click", () => {
+            if (currentAnnotator) currentAnnotator.color = color;
+          });
+          els.colorTools.appendChild(dot);
+        });
+
+        document.querySelectorAll("[data-tool]").forEach(btn => {
+          btn.addEventListener("click", () => {
+            if (!currentAnnotator) return;
+            currentAnnotator.tool = btn.dataset.tool;
+            document.querySelectorAll("[data-tool]").forEach(other => other.classList.toggle("active", other === btn));
           });
         });
-        // Horizontal divider before images
-        dy += 3;
-        doc.setDrawColor(150);
-        doc.setLineWidth(0.1);
-        doc.line(10, dy, 200, dy);
-        dy += 7;
 
-        // Fetch image data (before/after). We only attempt to embed images when
-        // we have an actual image URL/data URL. If "After" is still in template
-        // mode, we resolve the template to an image first.
-        let beforeData = null;
-        if(p.before && p.before.mode && p.before.mode !== 'none' && p.before.data){
-          if(p.before.mode === 'url'){
-            const tmp = await urlToDataURL(p.before.data);
-            beforeData = await normalizeImageDataForPDF(tmp);
-          }else if(p.before.mode === 'upload'){
-            beforeData = await normalizeImageDataForPDF(p.before.data);
-          }
-        }
+        els.closeAnnotatorBtn.addEventListener("click", closeAnnotator);
+        els.cancelAnnotatorBtn.addEventListener("click", closeAnnotator);
+        els.clearAnnotationsBtn.addEventListener("click", () => {
+          if (!currentAnnotator) return;
+          currentAnnotator.shapes = [];
+          redrawAnnotator();
+        });
+        els.saveAnnotatorBtn.addEventListener("click", saveAnnotation);
+      }
 
-        let afterData = null;
-        if(p.after && p.after.mode && p.after.data){
-          if(p.after.mode === 'url'){
-            const tmp = await urlToDataURL(p.after.data);
-            afterData = await normalizeImageDataForPDF(tmp);
-          }else if(p.after.mode === 'upload'){
-            afterData = await normalizeImageDataForPDF(p.after.data);
-          }else if(p.after.mode === 'template'){
-            const resolvedUrl = await fetchTemplateImage(p.after.data);
-            if(resolvedUrl){
-              const tmp = await urlToDataURL(resolvedUrl);
-              afterData = await normalizeImageDataForPDF(tmp);
-            }
-          }
-        }
-        // Labels for images
-        doc.setFont('helvetica', 'bold');
-        doc.text('Before', 10, dy);
-        doc.text('After', 110, dy);
-        dy += 4;
-        // Images or placeholders
-        const imgWidth = 80;
-        const imgHeight = 50;
-        doc.setFont('helvetica', 'normal');
-        if(beforeData){
-          try{ doc.addImage(beforeData, 'JPEG', 10, dy, imgWidth, imgHeight); }
-          catch{ doc.setFontSize(10); doc.text('Could not embed before image', 10, dy + 20); }
-        }else{
-          doc.setFontSize(10);
-          doc.text('No before image available', 10, dy + 20);
-        }
-        if(afterData){
-          try{ doc.addImage(afterData, 'JPEG', 110, dy, imgWidth, imgHeight); }
-          catch{ doc.setFontSize(10); doc.text('Could not embed after image', 110, dy + 20); }
-        }else{
-          doc.setFontSize(10);
-          doc.text('No after image available', 110, dy + 20);
-        }
-        // Draw a line below the images
-        dy += imgHeight + 8;
-        doc.setDrawColor(200);
-        doc.setLineWidth(0.05);
-        doc.line(10, dy, 200, dy);
-        // Insert a page break except after the last POI; page numbers
-        if(i < pois.length - 1){
-          doc.addPage();
+      function openAnnotator(poiId, imageId) {
+        const poi = state.pois.find(p => p.id === poiId);
+        const image = poi?.images.find(img => img.id === imageId);
+        if (!poi || !image) return;
+
+        const baseImage = new Image();
+        baseImage.onload = () => {
+          const canvas = els.annotatorCanvas;
+          const maxWidth = 860;
+          const scale = Math.min(1, maxWidth / baseImage.width);
+          canvas.width = Math.round(baseImage.width * scale);
+          canvas.height = Math.round(baseImage.height * scale);
+
+          currentAnnotator = {
+            poiId,
+            imageId,
+            tool: "circle",
+            color: "#ef4444",
+            shapes: [],
+            baseImage,
+            scale,
+            drawing: null
+          };
+
+          bindCanvasEvents();
+          redrawAnnotator();
+          els.annotatorModal.classList.add("open");
+        };
+        baseImage.src = image.dataUrl;
+      }
+
+      let annotatorEventsBound = false;
+      function bindCanvasEvents() {
+        if (annotatorEventsBound) return;
+        annotatorEventsBound = true;
+        const canvas = els.annotatorCanvas;
+
+        canvas.addEventListener("mousedown", (event) => {
+          if (!currentAnnotator || currentAnnotator.tool === "text") return;
+          const pos = canvasPos(event);
+          currentAnnotator.drawing = { startX: pos.x, startY: pos.y, endX: pos.x, endY: pos.y };
+        });
+
+        canvas.addEventListener("mousemove", (event) => {
+          if (!currentAnnotator || !currentAnnotator.drawing) return;
+          const pos = canvasPos(event);
+          currentAnnotator.drawing.endX = pos.x;
+          currentAnnotator.drawing.endY = pos.y;
+          redrawAnnotator();
+        });
+
+        window.addEventListener("mouseup", (event) => {
+          if (!currentAnnotator || !currentAnnotator.drawing) return;
+          const pos = canvasPos(event);
+          currentAnnotator.drawing.endX = pos.x;
+          currentAnnotator.drawing.endY = pos.y;
+          currentAnnotator.shapes.push({
+            type: currentAnnotator.tool,
+            color: currentAnnotator.color,
+            ...currentAnnotator.drawing
+          });
+          currentAnnotator.drawing = null;
+          redrawAnnotator();
+        });
+
+        canvas.addEventListener("click", (event) => {
+          if (!currentAnnotator || currentAnnotator.tool !== "text") return;
+          const pos = canvasPos(event);
+          const value = prompt("Text annotation", "");
+          if (!value) return;
+          currentAnnotator.shapes.push({
+            type: "text",
+            color: currentAnnotator.color,
+            x: pos.x,
+            y: pos.y,
+            text: value
+          });
+          redrawAnnotator();
+        });
+      }
+
+      function canvasPos(event) {
+        const rect = els.annotatorCanvas.getBoundingClientRect();
+        const x = Math.max(0, Math.min(rect.width, event.clientX - rect.left));
+        const y = Math.max(0, Math.min(rect.height, event.clientY - rect.top));
+        const scaleX = els.annotatorCanvas.width / rect.width;
+        const scaleY = els.annotatorCanvas.height / rect.height;
+        return { x: x * scaleX, y: y * scaleY };
+      }
+
+      function redrawAnnotator() {
+        if (!currentAnnotator) return;
+        const canvas = els.annotatorCanvas;
+        const ctx = canvas.getContext("2d");
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(currentAnnotator.baseImage, 0, 0, canvas.width, canvas.height);
+        currentAnnotator.shapes.forEach(shape => drawShape(ctx, shape));
+        if (currentAnnotator.drawing) {
+          drawShape(ctx, {
+            type: currentAnnotator.tool,
+            color: currentAnnotator.color,
+            ...currentAnnotator.drawing
+          });
         }
       }
-      // Add page numbers to the footer of every page. This must be done
-      // after all pages have been created; otherwise subsequent calls to
-      // addPage() reset the page counter.
-      const total = doc.getNumberOfPages();
-      for(let page = 1; page <= total; page++){
-        doc.setPage(page);
-        doc.setFontSize(8);
-        doc.setFont('helvetica', 'italic');
-        doc.text(`Page ${page} of ${total}`, 105, 290, { align:'center' });
-      }
-      doc.save('poi_report.pdf');
-    }catch(e){
-      // Fallback: generate a minimal PDF without images and prompt the user to
-      // download it. This fallback constructs a small PDF manually. Images are
-      // omitted in this mode because embedding binary JPEGs without a library
-      // requires significant additional code. A notice is included at the top
-      // of the PDF to explain the limitation.
-      const blob = buildSimplePDF(pois);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'poi_report.pdf';
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 500);
-    }
-  }
 
-  // Build a very simple PDF containing text for each POI. This generator
-  // constructs the PDF syntax manually and is used when jsPDF cannot be loaded.
-  // It omits images but records the most important attributes for each POI.
-  function buildSimplePDF(pois){
-    // Escape parentheses and backslashes for PDF string literals.
-    const escapePDFString = (s) => String(s||'').replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)');
-    // Compose content stream: write each line at a decreasing Y position.
-    let content = 'BT\n/F1 11 Tf\n';
-    let y = 780; // Start near top of page (units: points; 72 points per inch)
-    for(const p of pois){
-      const lines = [];
-      lines.push(p.title || 'Untitled POI');
-      lines.push('Category: ' + labelOf('category', p.category));
-      lines.push('Type: ' + labelOf('type', p.type));
-      lines.push('Urgency: ' + labelOf('urgency', p.urgency));
-      lines.push('Location: ' + p.lat.toFixed(5) + ', ' + p.lon.toFixed(5));
-      if(p.tags && p.tags.length) lines.push('Tags: ' + (p.tags || []).join(', '));
-      if(p.comment) lines.push('Comment: ' + p.comment);
-      if(p.status) lines.push('Status: ' + labelOf('status', p.status));
-      if(p.feedbackScore !== null && p.feedbackScore !== undefined) lines.push('Feedback score: ' + p.feedbackScore);
-      if(p.feedbackComment) lines.push('Feedback comment: ' + p.feedbackComment);
-      if(p.workshopDate) lines.push('Workshop date: ' + p.workshopDate);
-      lines.push('');
-      for(const ln of lines){
-        // Each line is written using a text matrix to position it. Use 1 0 0 1 x y Tm
-        // to set the text location. Then output the string with Tj.
-        content += `1 0 0 1 50 ${y.toFixed(0)} Tm (${escapePDFString(ln)}) Tj\n`;
-        y -= 14;
-        // Start a new page if there is insufficient vertical space. We assume
-        // roughly 50 points of margin at the bottom. When triggered, insert
-        // page-breaking markers by finishing the current text object and
-        // resetting y. Because this fallback does not support multiple pages,
-        // we simply reset y when it goes too low.
-        if(y < 50){ y = 780; }
-      }
-    }
-    content += 'ET';
-    const contentLength = content.length;
-    // Build the PDF structure. We'll create six objects: root, pages, page,
-    // content, resources, and font. Offsets are computed dynamically. Use
-    // Windows-style line endings (\n) to keep offsets correct across
-    // platforms.
-    let pdf = '%PDF-1.4\n';
-    const offsets = [];
-    const push = (obj) => { offsets.push(pdf.length); pdf += obj; };
-    // 1 0 obj: catalog
-    push('1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n');
-    // 2 0 obj: pages
-    push('2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n');
-    // 3 0 obj: single page with resources and content stream
-    push('3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources 5 0 R >>\nendobj\n');
-    // 4 0 obj: content stream
-    push(`4 0 obj\n<< /Length ${contentLength} >>\nstream\n${content}\nendstream\nendobj\n`);
-    // 5 0 obj: resources (font dictionary)
-    push('5 0 obj\n<< /Font << /F1 6 0 R >> >>\nendobj\n');
-    // 6 0 obj: font (Helvetica)
-    push('6 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n');
-    // Cross reference table
-    const xrefStart = pdf.length;
-    pdf += 'xref\n0 7\n';
-    pdf += '0000000000 65535 f \n';
-    for(const off of offsets){
-      pdf += String(off).padStart(10, '0') + ' 00000 n \n';
-    }
-    // Trailer
-    pdf += 'trailer\n<< /Size 7 /Root 1 0 R >>\nstartxref\n' + xrefStart + '\n%%EOF';
-    return new Blob([pdf], { type:'application/pdf' });
-  }
+      function drawShape(ctx, shape) {
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = shape.color;
+        ctx.fillStyle = shape.color;
+        ctx.font = "24px Inter, sans-serif";
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
 
-  // Init
-  refreshPOIMarkers();
-  renderList();
-  renderRight(null);
-  renderCompareStrip();
-  // Hook info modal button and close events
-  const infoBtn = el('btnInfo');
-  if(infoBtn){ infoBtn.onclick = () => { const m = document.getElementById('infoModal'); if(m) m.style.display = 'flex'; }; }
-  const infoClose = el('infoClose');
-  if(infoClose){ infoClose.onclick = () => { const m = document.getElementById('infoModal'); if(m) m.style.display = 'none'; }; }
-  // Hook compare modal close and save events
-  const compareClose = el('compareClose');
-  if(compareClose){ compareClose.onclick = () => { const m = document.getElementById('compareModal'); if(m) m.style.display = 'none'; }; }
-  const compareSave = el('compareSave');
-  if(compareSave){ compareSave.onclick = () => { const m = document.getElementById('compareModal'); if(m) m.style.display = 'none'; savePOIs(); renderList(); }; }
-})();
-</script>
+        if (shape.type === "circle") {
+          const x = Math.min(shape.startX, shape.endX);
+          const y = Math.min(shape.startY, shape.endY);
+          const w = Math.abs(shape.endX - shape.startX);
+          const h = Math.abs(shape.endY - shape.startY);
+          ctx.beginPath();
+          ctx.ellipse(x + w / 2, y + h / 2, Math.max(8, w / 2), Math.max(8, h / 2), 0, 0, Math.PI * 2);
+          ctx.stroke();
+          return;
+        }
+
+        if (shape.type === "arrow") {
+          const headLength = 18;
+          const dx = shape.endX - shape.startX;
+          const dy = shape.endY - shape.startY;
+          const angle = Math.atan2(dy, dx);
+          ctx.beginPath();
+          ctx.moveTo(shape.startX, shape.startY);
+          ctx.lineTo(shape.endX, shape.endY);
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(shape.endX, shape.endY);
+          ctx.lineTo(shape.endX - headLength * Math.cos(angle - Math.PI / 6), shape.endY - headLength * Math.sin(angle - Math.PI / 6));
+          ctx.lineTo(shape.endX - headLength * Math.cos(angle + Math.PI / 6), shape.endY - headLength * Math.sin(angle + Math.PI / 6));
+          ctx.closePath();
+          ctx.fill();
+          return;
+        }
+
+        if (shape.type === "text") {
+          ctx.strokeStyle = "rgba(0,0,0,.35)";
+          ctx.lineWidth = 6;
+          ctx.strokeText(shape.text, shape.x, shape.y);
+          ctx.fillText(shape.text, shape.x, shape.y);
+        }
+      }
+
+      function closeAnnotator() {
+        currentAnnotator = null;
+        els.annotatorModal.classList.remove("open");
+      }
+
+      function saveAnnotation() {
+        if (!currentAnnotator) return;
+        const poi = state.pois.find(p => p.id === currentAnnotator.poiId);
+        const image = poi?.images.find(img => img.id === currentAnnotator.imageId);
+        if (!poi || !image) return;
+        image.dataUrl = els.annotatorCanvas.toDataURL("image/png");
+        saveState();
+        closeAnnotator();
+        renderAll();
+      }
+
+      initAnnotatorTools();
+      buildFilterOptions();
+      els.sortSelect.value = "priority_desc";
+      renderAll();
+    })();
+  </script>
 </body>
 </html>
