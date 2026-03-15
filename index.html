@@ -872,6 +872,11 @@
       let listNodesById = new Map();
       let currentAnnotator = null;
 
+      // When editing a POI's title we debounce updates to the list and markers
+      // so that rapid typing doesn't trigger expensive re-renders on every
+      // keystroke.  This timer will be cleared and restarted on each input.
+      let titleChangeTimer = null;
+
       const map = L.map("map", { zoomControl: true, preferCanvas: true });
       // Initialise the base map using the correct OSM tile pattern. The previous version
       // inadvertently omitted the {y} placeholder which resulted in blank tiles. Using
@@ -1343,9 +1348,27 @@
         // titles are allowed and the list rendering will fall back to
         // displaying "Untitled POI" if the underlying value is empty.
         wrap.appendChild(makeField("Title", textInput(poi.title, value => {
+          // Update the underlying POI title as the user types.  Avoid a full
+          // re-render on every keystroke because that forces the input to be
+          // recreated and the cursor will jump to the end or the field will
+          // lose focus.  Instead update only the parts of the UI that depend
+          // on the title (the list of cards, marker tooltips and the header
+          // at the top of the detail panel).
           poi.title = value;
           saveState();
-          renderAll();
+          // Update the header title immediately so the user sees the change.
+          if (els && els.detailTitle) {
+            els.detailTitle.textContent = value || "Untitled POI";
+          }
+          // Debounce updates to the list and markers.  Clear any pending
+          // updates and schedule a new one.  This prevents rapid re-renders
+          // while typing, which previously caused the input to reset or miss
+          // keystrokes on some browsers.
+          if (titleChangeTimer) clearTimeout(titleChangeTimer);
+          titleChangeTimer = setTimeout(() => {
+            renderList();
+            renderMarkers();
+          }, 200);
         })));
 
         // Description field for the POI (replaces the old "Summary / note" wording)
