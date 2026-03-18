@@ -683,6 +683,9 @@
             categories, tags, priorities, images and annotations.</p>
         </div>
         <div class="row">
+          <!-- Scenario selector and creation button -->
+          <select id="viewSelect" class="select"></select>
+          <button class="btn secondary" id="addScenarioBtn" type="button">Add scenario</button>
           <button class="btn secondary" id="resetViewBtn" type="button">Reset view</button>
           <button class="btn" id="addPoiBtn" type="button">Add POI</button>
         </div>
@@ -860,10 +863,33 @@
         cancelAnnotatorBtn: $("cancelAnnotatorBtn"),
         saveAnnotatorBtn: $("saveAnnotatorBtn"),
         clearAnnotationsBtn: $("clearAnnotationsBtn"),
-        colorTools: $("colorTools")
+        colorTools: $("colorTools"),
+        // New elements for managing status quo and scenarios
+        viewSelect: $("viewSelect"),
+        addScenarioBtn: $("addScenarioBtn")
       };
 
       const state = loadState();
+      // Add a computed `pois` property that transparently maps to either the status quo
+      // or the currently active scenario. This allows existing code written against
+      // state.pois to continue operating without modification.
+      Object.defineProperty(state, "pois", {
+        get() {
+          if (state.activeScenarioId) {
+            const sc = state.scenarios.find(s => s.id === state.activeScenarioId);
+            return sc ? sc.pois : state.statusQuo.pois;
+          }
+          return state.statusQuo.pois;
+        },
+        set(newValue) {
+          if (state.activeScenarioId) {
+            const sc = state.scenarios.find(s => s.id === state.activeScenarioId);
+            if (sc) sc.pois = newValue;
+          } else {
+            state.statusQuo.pois = newValue;
+          }
+        }
+      });
       let addMode = false;
       let selectedId = null;
       let hoveredId = null;
@@ -897,13 +923,39 @@
       const poiLayer = L.layerGroup().addTo(map);
 
       function loadState() {
+        // Enhanced loadState to support a baseline status quo and multiple scenarios.
+        // If legacy data exists (with a top-level pois array) we treat that as the status quo.
         try {
           const raw = localStorage.getItem(STORAGE_KEY);
           if (raw) {
             const parsed = JSON.parse(raw);
+            const categories = Array.isArray(parsed.categories) && parsed.categories.length ? parsed.categories : DEFAULT_CATEGORIES.slice();
+            // New structured format with statusQuo and scenarios
+            if (parsed.statusQuo || parsed.scenarios) {
+              const statusQuo = {
+                pois: Array.isArray(parsed.statusQuo?.pois) ? parsed.statusQuo.pois.map(normalizePoi) : []
+              };
+              const scenarios = Array.isArray(parsed.scenarios) ? parsed.scenarios.map(sc => {
+                return {
+                  id: sc.id,
+                  name: sc.name,
+                  pois: Array.isArray(sc.pois) ? sc.pois.map(normalizePoi) : []
+                };
+              }) : [];
+              return {
+                categories,
+                statusQuo,
+                scenarios,
+                activeScenarioId: parsed.activeScenarioId || null
+              };
+            }
+            // Fallback to legacy structure
+            const pois = Array.isArray(parsed.pois) ? parsed.pois.map(normalizePoi) : [];
             return {
-              categories: Array.isArray(parsed.categories) && parsed.categories.length ? parsed.categories : DEFAULT_CATEGORIES.slice(),
-              pois: Array.isArray(parsed.pois) ? parsed.pois.map(normalizePoi) : []
+              categories,
+              statusQuo: { pois },
+              scenarios: [],
+              activeScenarioId: null
             };
           }
         } catch (err) {
@@ -911,7 +963,9 @@
         }
         return {
           categories: DEFAULT_CATEGORIES.slice(),
-          pois: []
+          statusQuo: { pois: [] },
+          scenarios: [],
+          activeScenarioId: null
         };
       }
 
@@ -951,7 +1005,20 @@
       }
 
       function saveState() {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        // Persist only serialisable parts of the state to avoid storing computed getters.
+        const dataToSave = {
+          categories: state.categories,
+          statusQuo: {
+            pois: state.statusQuo.pois
+          },
+          scenarios: state.scenarios.map(sc => ({
+            id: sc.id,
+            name: sc.name,
+            pois: sc.pois
+          })),
+          activeScenarioId: state.activeScenarioId || null
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
       }
 
       function uid() {
@@ -1092,6 +1159,22 @@
         });
 
         renderQuickCategoryChips();
+      }
+
+      // Populate the view selector with the baseline status quo and existing scenarios.
+      function buildViewOptions() {
+        const select = els.viewSelect;
+        if (!select) return;
+        select.innerHTML = "";
+        // Add baseline option
+        const baseOpt = new Option("Status quo", "statusQuo");
+        select.add(baseOpt);
+        // Add scenario options
+        state.scenarios.forEach(sc => {
+          const opt = new Option(sc.name || sc.id, sc.id);
+          select.add(opt);
+        });
+        select.value = state.activeScenarioId || "statusQuo";
       }
 
       function renderQuickCategoryChips() {
@@ -1976,6 +2059,41 @@
       }
       els.deleteBtn.addEventListener("click", deleteSelectedPoi);
 
+      // Handle switching between status quo and scenarios
+      els.viewSelect.addEventListener("change", () => {
+        const value = els.viewSelect.value;
+        if (value === "statusQuo") {
+          state.activeScenarioId = null;
+        } else {
+          state.activeScenarioId = value;
+        }
+        saveState();
+        buildViewOptions();
+        renderAll();
+      });
+
+      // Handle creation of new scenarios derived from the status quo
+      els.addScenarioBtn.addEventListener("click", () => {
+        const name = prompt("Scenario name", "");
+        if (!name) return;
+        const baseId = slugify(name);
+        let id = baseId;
+        let suffix = 1;
+        while (state.scenarios.some(sc => sc.id === id)) {
+          id = `${baseId}-${suffix++}`;
+        }
+        const poisClone = state.statusQuo.pois.map(poi => JSON.parse(JSON.stringify(poi)));
+        state.scenarios.push({
+          id,
+          name: name.trim() || id,
+          pois: poisClone
+        });
+        state.activeScenarioId = id;
+        saveState();
+        buildViewOptions();
+        renderAll();
+      });
+
       ["input","change"].forEach(evt => {
         els.searchInput.addEventListener(evt, renderAll);
         els.categoryFilter.addEventListener(evt, renderAll);
@@ -2197,6 +2315,7 @@
 
       initAnnotatorTools();
       buildFilterOptions();
+      buildViewOptions();
       els.sortSelect.value = "priority_desc";
       renderAll();
     })();
