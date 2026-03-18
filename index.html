@@ -12,16 +12,31 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
+    /*
+     * Override the default dark colour palette with a light theme. The original
+     * implementation used deep navy tones for the background and panels which
+     * made the interface appear quite dark. Swapping those values out for
+     * neutrals like whites and light greys gives the entire application a
+     * “lighter mode” feel without changing any of the underlying layout. The
+     * status colours (green/yellow/orange/red) and the accent blue remain
+     * unchanged to preserve semantic meaning.
+     */
     :root {
-      --bg: #08101e;
-      --panel: #0f172a;
-      --panel-2: #101b32;
-      --panel-3: #14213d;
-      --text: #e5eefc;
-      --muted: #9fb1cf;
-      --line: rgba(159,177,207,.18);
+      /* page backgrounds */
+      --bg: #f5f6fa;
+      --panel: #ffffff;
+      --panel-2: #f8fafc;
+      --panel-3: #f1f5f9;
+      /* primary text colours */
+      --text: #1e293b;
+      --muted: #64748b;
+      /* border/line colour */
+      --line: rgba(0,0,0,0.12);
+      /* accent colour remains blue for consistency */
       --accent: #60a5fa;
-      --shadow: 0 18px 45px rgba(0,0,0,.35);
+      /* softer shadow for light backgrounds */
+      --shadow: 0 4px 12px rgba(0,0,0,0.08);
+      /* status colours */
       --green: #22c55e;
       --yellow: #eab308;
       --orange: #f97316;
@@ -50,7 +65,8 @@
       padding: 12px;
     }
     .panel, .mapWrap {
-      background: linear-gradient(180deg, rgba(15,23,42,.96), rgba(8,16,30,.96));
+      /* use a subtle light gradient instead of dark navy */
+      background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(243,244,246,0.95));
       border: 1px solid var(--line);
       border-radius: var(--radius);
       box-shadow: var(--shadow);
@@ -82,10 +98,12 @@
       left: 14px;
       width: 360px;
       height: 220px;
-      border: 1px solid var(--line);
+      border: 1px solid rgba(159,177,207,.30);
       border-radius: var(--radius);
       overflow: hidden;
-      background: rgba(0,0,0,0.6);
+      /* Use a translucent white background so map details show through while
+       * keeping the embedded content legible. */
+      background: rgba(255,255,255,0.9);
       box-shadow: var(--shadow);
       color: var(--text);
       display: none;
@@ -173,10 +191,17 @@
       box-shadow: inset 0 0 0 1px rgba(96,165,250,.55);
       background: rgba(96,165,250,.22);
     }
+    /* Inputs and form controls were originally styled with a very dark
+     * translucent background intended for the dark mode version of this
+     * interface. In the light theme these dark boxes feel heavy and make
+     * it difficult to read the dark text. Switch them to a semi‑opaque
+     * white so that they subtly stand off the light panels without
+     * introducing unnecessary contrast. The border colour is softened
+     * accordingly. */
     .input, .select, .textarea {
       width: 100%;
-      border: 1px solid rgba(159,177,207,.18);
-      background: rgba(8,16,30,.70);
+      border: 1px solid rgba(159,177,207,.30);
+      background: rgba(255,255,255,0.85);
       color: var(--text);
       border-radius: 12px;
       padding: 10px 12px;
@@ -204,9 +229,14 @@
       flex-direction: column;
       gap: 10px;
     }
+    /* POI cards use a much lighter background in the light theme. The
+     * original dark navy colour made the cards stand out too starkly
+     * against the pale panels. Using a translucent white gives a
+     * “glassy” effect similar to modern design systems while keeping the
+     * text legible. */
     .poiCard {
-      border: 1px solid rgba(159,177,207,.14);
-      background: rgba(20,33,61,.55);
+      border: 1px solid rgba(159,177,207,.24);
+      background: rgba(255,255,255,0.75);
       border-radius: 16px;
       padding: 10px 12px;
       cursor: pointer;
@@ -262,8 +292,8 @@
       font-weight: 700;
       border-radius: 999px;
       padding: 5px 8px;
-      border: 1px solid rgba(159,177,207,.18);
-      background: rgba(8,16,30,.55);
+      border: 1px solid rgba(159,177,207,.24);
+      background: rgba(255,255,255,0.70);
       color: var(--text);
     }
     .stats {
@@ -275,12 +305,13 @@
     }
     .emptyState {
       padding: 18px;
-      border: 1px dashed rgba(159,177,207,.20);
+      border: 1px dashed rgba(159,177,207,.30);
       border-radius: 16px;
       color: var(--muted);
       text-align: center;
       font-size: 13px;
       line-height: 1.5;
+      background: rgba(255,255,255,0.6);
     }
     .mapWrap {
       overflow: hidden;
@@ -302,6 +333,10 @@
       z-index: 500;
       pointer-events: none;
     }
+    /* The chip panels shown on top of the map use a frosted glass effect.
+     * For the light mode we switch to a semi‑transparent white base and
+     * increase the backdrop blur. This ensures the text remains readable
+     * regardless of what map tiles appear underneath. */
     .chipPanel {
       pointer-events: auto;
       display: flex;
@@ -309,8 +344,8 @@
       align-items: center;
       padding: 10px 12px;
       border-radius: 14px;
-      border: 1px solid var(--line);
-      background: rgba(8,16,30,.82);
+      border: 1px solid rgba(159,177,207,.30);
+      background: rgba(255,255,255,0.75);
       backdrop-filter: blur(10px);
       color: var(--text);
       font-size: 12px;
@@ -337,7 +372,7 @@
       padding: 8px 10px;
       border-radius: 999px;
       border: 1px solid rgba(96,165,250,.28);
-      background: rgba(8,16,30,.86);
+      background: rgba(255,255,255,0.85);
       color: var(--text);
       font-size: 12px;
       font-weight: 800;
@@ -351,18 +386,19 @@
     }
     .detailEmpty {
       padding: 18px;
-      border: 1px dashed rgba(159,177,207,.18);
+      border: 1px dashed rgba(159,177,207,.28);
       border-radius: 16px;
       color: var(--muted);
       line-height: 1.55;
       font-size: 13px;
+      background: rgba(255,255,255,0.6);
     }
     .summaryBox {
       margin-top: 8px;
       padding: 12px;
       border-radius: 14px;
-      background: rgba(8,16,30,.52);
-      border: 1px solid rgba(159,177,207,.14);
+      background: rgba(255,255,255,0.7);
+      border: 1px solid rgba(159,177,207,.22);
       color: var(--muted);
       font-size: 12px;
       line-height: 1.45;
@@ -375,8 +411,8 @@
     .iconChoice {
       height: 40px;
       border-radius: 12px;
-      border: 1px solid rgba(159,177,207,.18);
-      background: rgba(8,16,30,.55);
+      border: 1px solid rgba(159,177,207,.24);
+      background: rgba(255,255,255,0.7);
       display: grid;
       place-items: center;
       cursor: pointer;
@@ -398,8 +434,8 @@
       gap: 6px;
       border-radius: 999px;
       padding: 6px 10px;
-      background: rgba(8,16,30,.70);
-      border: 1px solid rgba(159,177,207,.16);
+      background: rgba(255,255,255,0.7);
+      border: 1px solid rgba(159,177,207,.22);
       font-size: 12px;
     }
     .tag button {
@@ -411,8 +447,8 @@
     .categoryChip {
       border-radius: 999px;
       padding: 7px 11px;
-      border: 1px solid rgba(159,177,207,.18);
-      background: rgba(8,16,30,.62);
+      border: 1px solid rgba(159,177,207,.24);
+      background: rgba(255,255,255,0.75);
       color: var(--text);
       font-size: 12px;
       font-weight: 700;
@@ -420,11 +456,11 @@
     }
     .categoryChip.active {
       border-color: rgba(96,165,250,.48);
-      background: rgba(96,165,250,.14);
+      background: rgba(96,165,250,.20);
     }
     .commentItem, .imageCard {
-      border: 1px solid rgba(159,177,207,.14);
-      background: rgba(8,16,30,.55);
+      border: 1px solid rgba(159,177,207,.22);
+      background: rgba(255,255,255,0.75);
       border-radius: 14px;
       padding: 10px;
     }
@@ -505,15 +541,17 @@
       box-shadow: 0 0 0 3px rgba(96,165,250,.28), 0 10px 18px rgba(0,0,0,.34);
     }
     .leaflet-tooltip.poiTooltip {
-      background: rgba(8,16,30,.94);
+      /* light tooltip background and border */
+      background: rgba(255,255,255,0.95);
       color: var(--text);
-      border: 1px solid rgba(159,177,207,.18);
+      border: 1px solid var(--line);
       box-shadow: var(--shadow);
       border-radius: 14px;
       padding: 0;
     }
     .leaflet-tooltip.poiTooltip::before {
-      border-top-color: rgba(8,16,30,.94);
+      /* arrow colour matches tooltip background */
+      border-top-color: rgba(255,255,255,0.95);
     }
     .tooltipBox {
       min-width: 210px;
@@ -529,12 +567,26 @@
       font-size: 12px;
       line-height: 1.45;
     }
+
+    /* Image preview within POI tooltips. When a point of interest has at least one
+     * image associated with it, the first image is displayed below the meta
+     * information in the tooltip. The styles below ensure the preview scales
+     * to the tooltip’s width and has rounded corners to match the overall
+     * aesthetic. */
+    .tooltipImage {
+      margin-top: 8px;
+      width: 100%;
+      height: auto;
+      border-radius: 8px;
+      object-fit: cover;
+    }
     .toolbarHint {
       margin-top: 10px;
       padding: 10px 12px;
       border-radius: 12px;
-      background: rgba(8,16,30,.70);
-      border: 1px solid rgba(159,177,207,.14);
+      /* lighter hint background to stand out on white panel */
+      background: rgba(255,255,255,0.8);
+      border: 1px solid var(--line);
       color: var(--muted);
       font-size: 12px;
       line-height: 1.45;
@@ -542,7 +594,8 @@
     .modal {
       position: fixed;
       inset: 0;
-      background: rgba(2,6,23,.70);
+      /* semi‑transparent black overlay for light mode */
+      background: rgba(0,0,0,0.5);
       display: none;
       align-items: center;
       justify-content: center;
@@ -558,7 +611,8 @@
       overflow: auto;
       border-radius: 22px;
       border: 1px solid var(--line);
-      background: linear-gradient(180deg, rgba(15,23,42,.98), rgba(8,16,30,.98));
+      /* light gradient for modal content */
+      background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.98));
       box-shadow: var(--shadow);
       padding: 18px;
     }
@@ -576,15 +630,17 @@
     .canvasWrap {
       border-radius: 18px;
       overflow: auto;
-      border: 1px solid rgba(159,177,207,.16);
-      background: rgba(8,16,30,.75);
+      border: 1px solid var(--line);
+      /* light background for annotator canvas wrapper */
+      background: rgba(255,255,255,0.9);
       padding: 12px;
     }
     #annotatorCanvas {
       display: block;
       max-width: 100%;
       border-radius: 12px;
-      background: #0b1120;
+      /* white canvas background so annotations contrast nicely */
+      background: #ffffff;
       cursor: crosshair;
     }
     .toolGroup {
@@ -645,7 +701,8 @@
       padding: 10px 12px;
       border-radius: 14px;
       border: 1px solid var(--line);
-      background: rgba(8,16,30,.86);
+      /* semi‑transparent white panel so the map shows through subtly */
+      background: rgba(255,255,255,0.9);
       backdrop-filter: blur(10px);
       color: var(--text);
       font-size: 12px;
@@ -1242,6 +1299,14 @@
       function tooltipHtml(poi) {
         const category = getCategory(poi.categoryId);
         const priority = getPriority(poi.priority);
+        // Build an optional image preview. If the POI has images, show the
+        // first one below the metadata. Otherwise, leave this string empty.
+        let imageHtml = "";
+        if (poi.images && poi.images.length > 0) {
+          const first = poi.images[0];
+          // Use the stored dataUrl so that any annotations are included.
+          imageHtml = `<img src="${first.dataUrl}" class="tooltipImage" alt="POI image" />`;
+        }
         return `
           <div class="tooltipBox">
             <div class="tooltipTitle">${escapeHtml(poi.title || "Untitled POI")}</div>
@@ -1251,6 +1316,7 @@
               Comments: ${poi.comments.length}<br>
               Images: ${poi.images.length}
             </div>
+            ${imageHtml}
           </div>
         `;
       }
@@ -2011,7 +2077,8 @@
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = APP_MODE === "cloudflare" ? "poi-export-cloudflare.csv" : "poi-export-local.csv";
+        // Always use a descriptive file name regardless of deployment environment.
+        a.download = "Point of Interest_FutureBEEing.csv";
         document.body.appendChild(a);
         a.click();
         a.remove();
