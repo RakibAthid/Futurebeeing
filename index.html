@@ -744,6 +744,8 @@
           <!-- Scenario selector and creation button -->
           <select id="viewSelect" class="select"></select>
           <button class="btn secondary" id="addScenarioBtn" type="button">Add scenario</button>
+          <button class="btn secondary" id="renameScenarioBtn" type="button">Rename scenario</button>
+          <button class="btn danger" id="deleteScenarioBtn" type="button">Delete scenario</button>
           <button class="btn secondary" id="resetViewBtn" type="button">Reset view</button>
           <button class="btn" id="addPoiBtn" type="button">Add POI</button>
         </div>
@@ -926,7 +928,9 @@
         colorTools: $("colorTools"),
         // New elements for managing status quo and scenarios
         viewSelect: $("viewSelect"),
-        addScenarioBtn: $("addScenarioBtn")
+        addScenarioBtn: $("addScenarioBtn"),
+        renameScenarioBtn: $("renameScenarioBtn"),
+        deleteScenarioBtn: $("deleteScenarioBtn")
       };
 
       const state = loadState();
@@ -1236,19 +1240,40 @@
         return activeScenario ? activeScenario.name : "Status quo";
       }
 
+      function ensureSelectedPoiExists() {
+        if (selectedId && state.pois.some(p => p.id === selectedId)) return;
+        selectedId = state.pois[0]?.id || null;
+      }
+
+      function getScenarioOptionLabel(scenario, index) {
+        const label = scenario.name || `Scenario ${index + 1}`;
+        return `Scenario · ${label} · ${displayCountLabel(scenario.pois.length, "POI", "POIs")}`;
+      }
+
+      function updateScenarioButtons() {
+        const activeScenario = getActiveScenario();
+        if (els.renameScenarioBtn) {
+          els.renameScenarioBtn.disabled = !activeScenario;
+          els.renameScenarioBtn.title = activeScenario ? `Rename ${activeScenario.name}` : "Rename is available for scenarios only";
+        }
+        if (els.deleteScenarioBtn) {
+          els.deleteScenarioBtn.disabled = !activeScenario;
+          els.deleteScenarioBtn.title = activeScenario ? `Delete ${activeScenario.name}` : "Delete is available for scenarios only";
+        }
+      }
+
       // Populate the view selector with the baseline status quo and existing scenarios.
       function buildViewOptions() {
         const select = els.viewSelect;
         if (!select) return;
         const currentValue = state.activeScenarioId || "statusQuo";
         select.innerHTML = "";
-        select.add(new Option(`Status quo (${state.statusQuo.pois.length})`, "statusQuo"));
+        select.add(new Option(`Base · Status quo · ${displayCountLabel(state.statusQuo.pois.length, "POI", "POIs")}`, "statusQuo"));
         state.scenarios.forEach((sc, index) => {
-          const label = sc.name || `Scenario ${index + 1}`;
-          const opt = new Option(`${label} (${sc.pois.length})`, sc.id);
-          select.add(opt);
+          select.add(new Option(getScenarioOptionLabel(sc, index), sc.id));
         });
         select.value = [...select.options].some(opt => opt.value === currentValue) ? currentValue : "statusQuo";
+        updateScenarioButtons();
       }
 
       function renderQuickCategoryChips() {
@@ -2030,7 +2055,45 @@
       }
 
       function getNextScenarioName() {
-        return `Scenario ${state.scenarios.length + 1}`;
+        let number = 1;
+        const usedNames = new Set(state.scenarios.map(sc => String(sc.name || "").trim().toLowerCase()));
+        while (usedNames.has(`scenario ${number}`)) number += 1;
+        return `Scenario ${number}`;
+      }
+
+      function renameActiveScenario() {
+        const activeScenario = getActiveScenario();
+        if (!activeScenario) {
+          alert("Switch to a scenario first. Status quo cannot be renamed.");
+          return;
+        }
+        const typedName = prompt("Rename scenario", activeScenario.name || "");
+        if (typedName === null) return;
+        const cleanName = typedName.trim();
+        if (!cleanName) {
+          alert("Please enter a scenario name.");
+          return;
+        }
+        activeScenario.name = cleanName;
+        saveState();
+        buildViewOptions();
+        renderAll();
+      }
+
+      function deleteActiveScenario() {
+        const activeScenario = getActiveScenario();
+        if (!activeScenario) {
+          alert("Switch to a scenario first. Status quo cannot be deleted.");
+          return;
+        }
+        const scenarioName = activeScenario.name || "this scenario";
+        if (!confirm(`Delete "${scenarioName}"? This only removes the scenario, not the status quo.`)) return;
+        state.scenarios = state.scenarios.filter(sc => sc.id !== activeScenario.id);
+        state.activeScenarioId = null;
+        ensureSelectedPoiExists();
+        saveState();
+        buildViewOptions();
+        renderAll();
       }
 
       function clonePoisForScenario(pois) {
@@ -2119,15 +2182,48 @@
       }
 
       function renderAll() {
-        buildFilterOptions();
-        els.modePill.textContent = addMode ? `Add mode · ${getActiveViewLabel()}` : `Browse mode · ${getActiveViewLabel()}`;
+        // Always make sure there is a valid selection when the underlying POI list may have
+        // changed (for example, after deletion).  This prevents stale references
+        // from causing UI errors.
+        ensureSelectedPoiExists();
+
+        // IMPORTANT: Do not rebuild the filter options or view selector on every
+        // render.  Rebuilding these controls will wipe out the user’s current
+        // selections and cause frustration (for example, the sort order or
+        // category filter resetting to its default each time a POI is edited or
+        // added).  Instead these functions are invoked only when their underlying
+        // data changes (e.g. categories or scenarios are modified).  See the
+        // initialisation code at the bottom of the script and the scenario
+        // management functions for where they are called.
+
+        // Rebuild the view selector so that POI counts stay up‑to‑date.  This
+        // preserves the currently selected scenario because `buildViewOptions()`
+        // sets the `select.value` to `state.activeScenarioId` or `statusQuo`.
+        buildViewOptions();
+
+        // Update the mode pill and hint to reflect whether we are in add mode or
+        // browse mode and to display the current view label (status quo or
+        // scenario name).  Because `getActiveViewLabel()` depends on the
+        // current scenario selection, this will update the label whenever
+        // `state.activeScenarioId` changes.
+        els.modePill.textContent = addMode
+          ? `Add mode · ${getActiveViewLabel()}`
+          : `Browse mode · ${getActiveViewLabel()}`;
         els.addHint.textContent = addMode
           ? `Click on the map to place a new POI inside ${getStudyAreaName()} for ${getActiveViewLabel()}.`
           : `Click Add POI, then click inside the ${getStudyAreaName()} study area to place one in ${getActiveViewLabel()}.`;
+
+        // Render the map markers, list panel and detail panel for the current
+        // view.  These functions will read from `state.pois`, which is a
+        // computed property that automatically returns the appropriate array
+        // depending on whether a scenario is active.  They are intentionally
+        // decoupled from the filter and view selectors to avoid resetting
+        // control state.
         renderMarkers();
         renderList();
         renderDetail();
-        // Refresh the dashboard summary counts every time the UI updates
+
+        // Refresh the dashboard summary counts every time the UI updates.
         updateStats();
       }
 
@@ -2265,11 +2361,8 @@
       els.viewSelect.addEventListener("change", () => {
         const value = els.viewSelect.value;
         state.activeScenarioId = value === "statusQuo" ? null : value;
-        if (selectedId && !state.pois.some(p => p.id === selectedId)) {
-          selectedId = state.pois[0]?.id || null;
-        }
+        ensureSelectedPoiExists();
         saveState();
-        buildViewOptions();
         renderAll();
       });
 
@@ -2294,10 +2387,16 @@
         state.activeScenarioId = id;
         selectedId = poisClone[0]?.id || null;
         saveState();
-        buildViewOptions();
         renderAll();
-        alert(`${cleanName} is now active and available in the scenario selector.`);
       });
+
+      if (els.renameScenarioBtn) {
+        els.renameScenarioBtn.addEventListener("click", renameActiveScenario);
+      }
+
+      if (els.deleteScenarioBtn) {
+        els.deleteScenarioBtn.addEventListener("click", deleteActiveScenario);
+      }
 
       ["input","change"].forEach(evt => {
         els.searchInput.addEventListener(evt, renderAll);
