@@ -10,6 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
   <style>
     /*
@@ -772,6 +773,7 @@
           <div class="row" style="justify-content:space-between;">
             <span class="sectionLabel" style="margin:0;">POI overview</span>
             <button class="btn secondary" id="exportCsvBtn" type="button">Export CSV</button>
+            <button class="btn secondary" id="exportMoodboardBtn" type="button">Export inspiration ZIP</button>
           </div>
           <div id="poiList" class="list"></div>
         </div>
@@ -819,7 +821,7 @@
           This interface supports the core POI workflow: choose a category and icon,
           assign a priority, add tags, comments and images (with titles and descriptions),
           annotate images, hover over markers for a quick overview, filter and sort the list,
-          and export your data to CSV.  New POIs must fall within the selected study area boundary.
+          and export your data to CSV or inspiration ZIPs. New POIs must fall within the selected study area boundary.
         </div>
       </div>
     </aside>
@@ -899,6 +901,7 @@
         addPoiBtn: $("addPoiBtn"),
         resetViewBtn: $("resetViewBtn"),
         exportCsvBtn: $("exportCsvBtn"),
+        exportMoodboardBtn: $("exportMoodboardBtn"),
         searchInput: $("searchInput"),
         categoryFilter: $("categoryFilter"),
         priorityFilter: $("priorityFilter"),
@@ -1041,24 +1044,30 @@
             text: c.text || "",
             createdAt: c.createdAt || new Date().toISOString()
           }).filter(c => c.text.trim()) : [],
-          images: Array.isArray(poi.images) ? poi.images.map(img => {
-            if (typeof img === "string") {
-              return {
-                id: uid(),
-                title: "Image",
-                description: "",
-                dataUrl: img
-              };
-            }
-            return {
-              id: img.id || uid(),
-              title: img.title || "Image",
-              description: img.description || "",
-              dataUrl: img.dataUrl || img.src || ""
-            };
-          }).filter(img => img.dataUrl) : [],
+          images: normalizeImageCollection(poi.images, "Image"),
+          futureImages: normalizeImageCollection(poi.futureImages || poi.moodboardImages || poi.inspirationImages, "Inspiration image"),
           createdAt: poi.createdAt || new Date().toISOString()
         };
+      }
+
+      function normalizeImageCollection(collection, fallbackTitle = "Image") {
+        return Array.isArray(collection) ? collection.map(img => {
+          if (typeof img === "string") {
+            return {
+              id: uid(),
+              title: fallbackTitle,
+              description: "",
+              dataUrl: img
+            };
+          }
+          return {
+            id: img.id || uid(),
+            title: img.title || fallbackTitle,
+            description: img.description || "",
+            dataUrl: img.dataUrl || img.src || "",
+            originalName: img.originalName || ""
+          };
+        }).filter(img => img.dataUrl) : [];
       }
 
       function saveState() {
@@ -1186,7 +1195,7 @@
       function toggleAddMode(force) {
         addMode = typeof force === "boolean" ? force : !addMode;
         els.addPoiBtn.classList.toggle("active", addMode);
-        els.modePill.textContent = addMode ? "Add mode" : "Browse mode";
+        els.modePill.textContent = addMode ? `Add mode · ${getActiveViewLabel()}` : `Browse mode · ${getActiveViewLabel()}`;
         els.addHint.textContent = addMode
           ? `Click on the map to place a new POI inside ${getStudyAreaName()}.`
           : `Click Add POI, then click inside the ${getStudyAreaName()} study area to place one.`;
@@ -1218,20 +1227,28 @@
         renderQuickCategoryChips();
       }
 
+      function getActiveScenario() {
+        return state.activeScenarioId ? state.scenarios.find(sc => sc.id === state.activeScenarioId) || null : null;
+      }
+
+      function getActiveViewLabel() {
+        const activeScenario = getActiveScenario();
+        return activeScenario ? activeScenario.name : "Status quo";
+      }
+
       // Populate the view selector with the baseline status quo and existing scenarios.
       function buildViewOptions() {
         const select = els.viewSelect;
         if (!select) return;
+        const currentValue = state.activeScenarioId || "statusQuo";
         select.innerHTML = "";
-        // Add baseline option
-        const baseOpt = new Option("Status quo", "statusQuo");
-        select.add(baseOpt);
-        // Add scenario options
-        state.scenarios.forEach(sc => {
-          const opt = new Option(sc.name || sc.id, sc.id);
+        select.add(new Option(`Status quo (${state.statusQuo.pois.length})`, "statusQuo"));
+        state.scenarios.forEach((sc, index) => {
+          const label = sc.name || `Scenario ${index + 1}`;
+          const opt = new Option(`${label} (${sc.pois.length})`, sc.id);
           select.add(opt);
         });
-        select.value = state.activeScenarioId || "statusQuo";
+        select.value = [...select.options].some(opt => opt.value === currentValue) ? currentValue : "statusQuo";
       }
 
       function renderQuickCategoryChips() {
@@ -1262,7 +1279,8 @@
             poi.title,
             poi.summary,
             poi.tags.join(" "),
-            poi.comments.map(c => c.text).join(" ")
+            poi.comments.map(c => c.text).join(" "),
+            (poi.futureImages || []).map(img => `${img.title} ${img.description}`).join(" ")
           ].join(" ").toLowerCase();
 
           const matchesSearch = !search || haystack.includes(search);
@@ -1419,6 +1437,7 @@
             <div class="stats">
               <span>💬 ${poi.comments.length}</span>
               <span>🖼️ ${poi.images.length}</span>
+              <span>🎨 ${(poi.futureImages || []).length}</span>
             </div>
           `;
 
@@ -1461,7 +1480,7 @@
 
         if (!poi) {
           els.detailTitle.textContent = "POI details";
-          els.detailSub.textContent = "Click a marker or a card to open it in the sidebar.";
+          els.detailSub.textContent = `View: ${getActiveViewLabel()} · Click a marker or a card to open it in the sidebar.`;
           els.detailBody.className = "detailEmpty";
         // Show a simple description of what this tool supports when nothing is selected.
         // We intentionally keep this message brief and avoid exposing internal variables.
@@ -1469,7 +1488,7 @@
             This interface supports the core POI workflow: choose a category and icon,
             assign a priority, add tags, comments and images (with titles and descriptions),
             annotate images, hover over markers for a quick overview, filter and sort the list,
-            and export your data to CSV.  New POIs must fall within the selected study area boundary.
+            and export your data to CSV or inspiration ZIPs. New POIs must fall within the selected study area boundary.
           `;
           return;
         }
@@ -1478,7 +1497,7 @@
         const priority = getPriority(poi.priority);
 
         els.detailTitle.textContent = poi.title || "Untitled POI";
-        els.detailSub.textContent = `${category.label} · ${priority.label} (${priority.score}/4) · ${poi.lat.toFixed(5)}, ${poi.lon.toFixed(5)}`;
+        els.detailSub.textContent = `${getActiveViewLabel()} · ${category.label} · ${priority.label} (${priority.score}/4) · ${poi.lat.toFixed(5)}, ${poi.lon.toFixed(5)}`;
         els.detailBody.className = "";
         els.detailBody.innerHTML = "";
 
@@ -1548,6 +1567,7 @@
         wrap.appendChild(renderTagEditor(poi));
         wrap.appendChild(renderCommentsEditor(poi));
         wrap.appendChild(renderImagesEditor(poi));
+        wrap.appendChild(renderFutureMoodboardEditor(poi));
 
         const footer = document.createElement("div");
         footer.className = "footerNote";
@@ -1559,7 +1579,8 @@
         footer.innerHTML = `
           <strong>Marker logic</strong>: standard droplet marker, category icon in the circle, priority colour on the marker body.
           <br><strong>Priority colours</strong>: green = low, yellow = medium, orange = high, red = critical.
-          <br><strong>POI persistence</strong>: POIs are saved in your browser so you can reuse and export them for later scenario work.
+          <br><strong>POI persistence</strong>: POIs are saved in your browser per view, so status quo and scenarios stay separate.
+          <br><strong>Inspiration export</strong>: future moodboard images can be downloaded as one ZIP with a folder per POI.
           <br><strong>Study area</strong>: new POIs are restricted to the selected study area boundary.
         `;
         wrap.appendChild(footer);
@@ -1812,12 +1833,44 @@
       }
 
       function renderImagesEditor(poi) {
+        return renderImageCollectionEditor(poi, {
+          sectionLabel: "Current situation images",
+          collectionKey: "images",
+          emptyText: "No current situation images yet.",
+          uploadHint: "Upload the current situation. You can annotate these images afterwards.",
+          titlePrompt: "Current image title",
+          descriptionPrompt: "Current image description",
+          titleFieldLabel: "Image title",
+          descriptionFieldLabel: "Image description",
+          annotatable: true,
+          exportable: false,
+          annotationNote: "Annotation tools: circles, arrows, text, basic colours."
+        });
+      }
+
+      function renderFutureMoodboardEditor(poi) {
+        return renderImageCollectionEditor(poi, {
+          sectionLabel: "Future moodboard / inspiration",
+          collectionKey: "futureImages",
+          emptyText: "No inspiration images yet.",
+          uploadHint: "Upload references for how this POI could look in the future. These inspiration images can be exported into one ZIP with a folder per POI.",
+          titlePrompt: "Inspiration image title",
+          descriptionPrompt: "Inspiration image description",
+          titleFieldLabel: "Inspiration title",
+          descriptionFieldLabel: "Inspiration description",
+          annotatable: false,
+          exportable: true,
+          annotationNote: "These images are stored with the POI and included in the inspiration ZIP export."
+        });
+      }
+
+      function renderImageCollectionEditor(poi, options) {
         const section = document.createElement("div");
         section.className = "section";
 
         const label = document.createElement("span");
         label.className = "sectionLabel";
-        label.textContent = "Images";
+        label.textContent = options.sectionLabel;
         section.appendChild(label);
 
         const controls = document.createElement("div");
@@ -1826,71 +1879,77 @@
         const fileInput = document.createElement("input");
         fileInput.type = "file";
         fileInput.accept = "image/*";
+        fileInput.multiple = true;
         fileInput.className = "input";
         fileInput.style.flex = "1 1 220px";
-
         fileInput.addEventListener("change", async () => {
-          const file = fileInput.files && fileInput.files[0];
-          if (!file) return;
-          await addImageToPoi(poi, file);
+          const files = Array.from(fileInput.files || []);
+          if (!files.length) return;
+          for (const file of files) {
+            await addImageToPoi(poi, file, options.collectionKey, options);
+          }
           fileInput.value = "";
         });
         controls.appendChild(fileInput);
 
-        /*
-         * Removed explicit "Paste image" button.  Many browsers block
-         * navigator.clipboard.read() on pages served over the file:// protocol
-         * (or without a secure context), which meant that clicking the button
-         * would show an error dialog.  Instead, users can paste an image
-         * directly using the standard keyboard shortcut (Ctrl/Cmd+V) while
-         * this page is focused.  The global paste handler below will pick up
-         * the image from the clipboard and attach it to the selected POI.
-         */
+        if (options.exportable) {
+          const exportBtn = document.createElement("button");
+          exportBtn.type = "button";
+          exportBtn.className = "btn secondary";
+          exportBtn.textContent = "Export ZIP";
+          exportBtn.addEventListener("click", exportInspirationZip);
+          controls.appendChild(exportBtn);
+        }
+
         section.appendChild(controls);
 
         const note = document.createElement("div");
         note.className = "hint";
-        note.textContent = "After uploading an image via the file input, or pasting it with Ctrl/Cmd+V, the prototype asks for an image title and description.";
+        note.textContent = options.uploadHint;
         section.appendChild(note);
 
         const list = document.createElement("div");
         list.style.marginTop = "10px";
-        if (!poi.images.length) {
+        const imageCollection = poi[options.collectionKey] || [];
+        if (!imageCollection.length) {
           const empty = document.createElement("div");
           empty.className = "hint";
-          empty.textContent = "No images yet.";
+          empty.textContent = options.emptyText;
           list.appendChild(empty);
         } else {
-          poi.images.forEach(image => {
+          imageCollection.forEach(image => {
             const card = document.createElement("div");
             card.className = "imageCard";
+
+            const actionButtons = [];
+            if (options.annotatable) {
+              actionButtons.push('<button class="btn secondary" type="button" data-action="annotate">Annotate</button>');
+            }
+            actionButtons.push('<button class="btn danger" type="button" data-action="remove">Remove</button>');
 
             card.innerHTML = `
               <div class="imageHead">
                 <strong>${escapeHtml(image.title || "Image")}</strong>
-                <div class="row">
-                  <button class="btn secondary" type="button" data-action="annotate">Annotate</button>
-                  <button class="btn danger" type="button" data-action="remove">Remove</button>
-                </div>
+                <div class="row">${actionButtons.join("")}</div>
               </div>
             `;
 
             const img = document.createElement("img");
             img.className = "imageThumb";
             img.src = image.dataUrl;
-            img.alt = image.title || "POI image";
+            img.alt = image.title || options.sectionLabel;
             card.appendChild(img);
 
             const meta = document.createElement("div");
             meta.className = "metaGrid";
             meta.style.marginTop = "10px";
 
-            const titleField = makeField("Image title", textInput(image.title, value => {
+            const titleField = makeField(options.titleFieldLabel, textInput(image.title, value => {
               image.title = value;
               saveState();
               renderList();
             }), true);
-            const descField = makeField("Image description", textArea(image.description, value => {
+            const descField = makeField(options.descriptionFieldLabel, textArea(image.description, value => {
               image.description = value;
               saveState();
             }), true);
@@ -1900,17 +1959,20 @@
             card.appendChild(meta);
 
             card.querySelector('[data-action="remove"]').addEventListener("click", () => {
-              poi.images = poi.images.filter(imgItem => imgItem.id !== image.id);
+              poi[options.collectionKey] = (poi[options.collectionKey] || []).filter(imgItem => imgItem.id !== image.id);
               saveState();
               renderAll();
             });
-            card.querySelector('[data-action="annotate"]').addEventListener("click", () => {
-              openAnnotator(poi.id, image.id);
-            });
+
+            if (options.annotatable) {
+              card.querySelector('[data-action="annotate"]').addEventListener("click", () => {
+                openAnnotator(poi.id, image.id, options.collectionKey);
+              });
+            }
 
             const note = document.createElement("div");
             note.className = "annotationNote";
-            note.textContent = "Annotation tools: circles, arrows, text, basic colours.";
+            note.textContent = options.annotationNote;
             card.appendChild(note);
 
             list.appendChild(card);
@@ -1921,15 +1983,18 @@
         return section;
       }
 
-      async function addImageToPoi(poi, file) {
+      async function addImageToPoi(poi, file, collectionKey = "images", options = {}) {
         const dataUrl = await readFileAsDataUrl(file);
-        const title = prompt("Image title", file.name.replace(/\.[^.]+$/, "") || "Image") || "Image";
-        const description = prompt("Image description", "") || "";
-        poi.images.push({
+        const defaultTitle = file.name.replace(/\.[^.]+$/, "") || (collectionKey === "futureImages" ? "Inspiration image" : "Image");
+        const title = prompt(options.titlePrompt || "Image title", defaultTitle) || defaultTitle;
+        const description = prompt(options.descriptionPrompt || "Image description", "") || "";
+        if (!Array.isArray(poi[collectionKey])) poi[collectionKey] = [];
+        poi[collectionKey].push({
           id: uid(),
-          title: title.trim() || "Image",
+          title: title.trim() || defaultTitle,
           description: description.trim(),
-          dataUrl
+          dataUrl,
+          originalName: file.name || defaultTitle
         });
         saveState();
         renderAll();
@@ -1956,6 +2021,66 @@
         });
       }
 
+      function sanitizeFileName(text, fallback = "file") {
+        return String(text || fallback)
+          .replace(/[\/:*?"<>|]+/g, "-")
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, 80) || fallback;
+      }
+
+      function getNextScenarioName() {
+        return `Scenario ${state.scenarios.length + 1}`;
+      }
+
+      function clonePoisForScenario(pois) {
+        return (pois || []).map(poi => JSON.parse(JSON.stringify(poi)));
+      }
+
+      function getScenarioSourcePois() {
+        const activeScenario = getActiveScenario();
+        return activeScenario ? activeScenario.pois : state.statusQuo.pois;
+      }
+
+      async function exportInspirationZip() {
+        if (!window.JSZip) {
+          alert("ZIP export is not available because the JSZip library could not be loaded.");
+          return;
+        }
+        const poisWithImages = state.pois.filter(poi => Array.isArray(poi.futureImages) && poi.futureImages.length);
+        if (!poisWithImages.length) {
+          alert("There are no inspiration images to export in the current view.");
+          return;
+        }
+
+        const zip = new JSZip();
+        const rootFolder = zip.folder(`future-inspiration-${slugify(getActiveViewLabel()) || "view"}`);
+
+        poisWithImages.forEach((poi, index) => {
+          const poiFolderName = `${String(index + 1).padStart(2, "0")}-${sanitizeFileName(poi.title || `POI ${index + 1}`)}`;
+          const poiFolder = rootFolder.folder(poiFolderName);
+          poi.futureImages.forEach((image, imageIndex) => {
+            const match = String(image.dataUrl || "").match(/^data:(.*?);base64,(.*)$/);
+            if (!match) return;
+            const mimeType = match[1] || "image/png";
+            const base64Data = match[2];
+            const extension = mimeType.split("/")[1]?.split("+")[0] || "png";
+            const fileBase = sanitizeFileName(image.title || image.originalName || `inspiration-${imageIndex + 1}`, `inspiration-${imageIndex + 1}`);
+            poiFolder.file(`${String(imageIndex + 1).padStart(2, "0")}-${fileBase}.${extension}`, base64Data, { base64: true });
+          });
+        });
+
+        const blob = await zip.generateAsync({ type: "blob" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `future-inspiration-${slugify(getActiveViewLabel()) || "view"}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      }
+
       function createPoi(latlng) {
         if (!isInsideStudyArea(latlng)) {
           alert(`Please place the POI inside the ${getStudyAreaName()} study area.`);
@@ -1972,6 +2097,7 @@
           tags: [],
           comments: [],
           images: [],
+          futureImages: [],
           createdAt: new Date().toISOString()
         });
         state.pois.unshift(poi);
@@ -1994,6 +2120,10 @@
 
       function renderAll() {
         buildFilterOptions();
+        els.modePill.textContent = addMode ? `Add mode · ${getActiveViewLabel()}` : `Browse mode · ${getActiveViewLabel()}`;
+        els.addHint.textContent = addMode
+          ? `Click on the map to place a new POI inside ${getStudyAreaName()} for ${getActiveViewLabel()}.`
+          : `Click Add POI, then click inside the ${getStudyAreaName()} study area to place one in ${getActiveViewLabel()}.`;
         renderMarkers();
         renderList();
         renderDetail();
@@ -2051,6 +2181,8 @@
             "summary",
             "comment_count",
             "comments",
+            "current_image_count",
+            "inspiration_image_count",
             "lat",
             "lon",
             "created_at"
@@ -2067,6 +2199,8 @@
             poi.summary,
             String(poi.comments.length),
             poi.comments.map(c => c.text.replace(/\s+/g, " ").trim()).join(" | "),
+            String((poi.images || []).length),
+            String((poi.futureImages || []).length),
             String(poi.lat),
             String(poi.lon),
             poi.createdAt
@@ -2078,7 +2212,7 @@
         const a = document.createElement("a");
         a.href = url;
         // Always use a descriptive file name regardless of deployment environment.
-        a.download = "Point of Interest_FutureBEEing.csv";
+        a.download = `Point of Interest_${slugify(getActiveViewLabel()) || "view"}.csv`;
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -2115,6 +2249,7 @@
       els.addPoiBtn.addEventListener("click", () => toggleAddMode());
       els.resetViewBtn.addEventListener("click", () => map.fitBounds(studyAreaBounds, { padding: [14, 14] }));
       els.exportCsvBtn.addEventListener("click", exportCsv);
+      els.exportMoodboardBtn.addEventListener("click", exportInspirationZip);
       els.zoomBtn.addEventListener("click", zoomToSelected);
       // When the Street View button is clicked, open Street View for the selected POI
       if (els.streetViewBtn) {
@@ -2129,36 +2264,39 @@
       // Handle switching between status quo and scenarios
       els.viewSelect.addEventListener("change", () => {
         const value = els.viewSelect.value;
-        if (value === "statusQuo") {
-          state.activeScenarioId = null;
-        } else {
-          state.activeScenarioId = value;
+        state.activeScenarioId = value === "statusQuo" ? null : value;
+        if (selectedId && !state.pois.some(p => p.id === selectedId)) {
+          selectedId = state.pois[0]?.id || null;
         }
         saveState();
         buildViewOptions();
         renderAll();
       });
 
-      // Handle creation of new scenarios derived from the status quo
+      // Handle creation of new scenarios derived from the currently visible view.
       els.addScenarioBtn.addEventListener("click", () => {
-        const name = prompt("Scenario name", "");
-        if (!name) return;
-        const baseId = slugify(name);
+        const defaultName = getNextScenarioName();
+        const typedName = prompt("Scenario name", defaultName);
+        if (typedName === null) return;
+        const cleanName = typedName.trim() || defaultName;
+        const baseId = slugify(cleanName);
         let id = baseId;
         let suffix = 1;
         while (state.scenarios.some(sc => sc.id === id)) {
           id = `${baseId}-${suffix++}`;
         }
-        const poisClone = state.statusQuo.pois.map(poi => JSON.parse(JSON.stringify(poi)));
+        const poisClone = clonePoisForScenario(getScenarioSourcePois());
         state.scenarios.push({
           id,
-          name: name.trim() || id,
+          name: cleanName,
           pois: poisClone
         });
         state.activeScenarioId = id;
+        selectedId = poisClone[0]?.id || null;
         saveState();
         buildViewOptions();
         renderAll();
+        alert(`${cleanName} is now active and available in the scenario selector.`);
       });
 
       ["input","change"].forEach(evt => {
@@ -2177,7 +2315,7 @@
         const poi = state.pois.find(p => p.id === selectedId);
         if (!poi) return;
         const file = imageItem.getAsFile();
-        if (file) await addImageToPoi(poi, file);
+        if (file) await addImageToPoi(poi, file, "images", { titlePrompt: "Current image title", descriptionPrompt: "Current image description" });
       });
 
       function initAnnotatorTools() {
@@ -2212,9 +2350,9 @@
         els.saveAnnotatorBtn.addEventListener("click", saveAnnotation);
       }
 
-      function openAnnotator(poiId, imageId) {
+      function openAnnotator(poiId, imageId, collectionKey = "images") {
         const poi = state.pois.find(p => p.id === poiId);
-        const image = poi?.images.find(img => img.id === imageId);
+        const image = poi?.[collectionKey]?.find(img => img.id === imageId);
         if (!poi || !image) return;
 
         const baseImage = new Image();
@@ -2228,6 +2366,7 @@
           currentAnnotator = {
             poiId,
             imageId,
+            collectionKey,
             tool: "circle",
             color: "#ef4444",
             shapes: [],
@@ -2372,7 +2511,7 @@
       function saveAnnotation() {
         if (!currentAnnotator) return;
         const poi = state.pois.find(p => p.id === currentAnnotator.poiId);
-        const image = poi?.images.find(img => img.id === currentAnnotator.imageId);
+        const image = poi?.[currentAnnotator.collectionKey || "images"]?.find(img => img.id === currentAnnotator.imageId);
         if (!poi || !image) return;
         image.dataUrl = els.annotatorCanvas.toDataURL("image/png");
         saveState();
