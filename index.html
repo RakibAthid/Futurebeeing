@@ -869,6 +869,12 @@
       const APP_MODE = "cloudflare";
       const ASSET_ROOT = "https://pub-16912885f8be44fa806b33ff6683887e.r2.dev";
       const STORAGE_KEY = "FB_POI_STATUS_QUO_CLOUDFLARE_V1";
+      const STORAGE = window.sessionStorage;
+      try {
+        window.localStorage.removeItem(STORAGE_KEY);
+      } catch (err) {
+        console.warn("Could not clear legacy local storage", err);
+      }
 
       const PRIORITIES = [
         { id: "low", label: "Low", color: "#22c55e", score: 1 },
@@ -990,7 +996,7 @@
         // Enhanced loadState to support a baseline status quo and multiple scenarios.
         // If legacy data exists (with a top-level pois array) we treat that as the status quo.
         try {
-          const raw = localStorage.getItem(STORAGE_KEY);
+          const raw = STORAGE.getItem(STORAGE_KEY);
           if (raw) {
             const parsed = JSON.parse(raw);
             const categories = Array.isArray(parsed.categories) && parsed.categories.length ? parsed.categories : DEFAULT_CATEGORIES.slice();
@@ -1088,7 +1094,7 @@
           })),
           activeScenarioId: state.activeScenarioId || null
         };
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
+        STORAGE.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
       }
 
       function uid() {
@@ -1604,7 +1610,7 @@
         footer.innerHTML = `
           <strong>Marker logic</strong>: standard droplet marker, category icon in the circle, priority colour on the marker body.
           <br><strong>Priority colours</strong>: green = low, yellow = medium, orange = high, red = critical.
-          <br><strong>POI persistence</strong>: POIs are saved in your browser per view, so status quo and scenarios stay separate.
+          <br><strong>POI persistence</strong>: POIs stay available only during the current browser tab session. After you close the prototype, it starts fresh the next time you open it.
           <br><strong>Inspiration export</strong>: future moodboard images can be downloaded as one ZIP with a folder per POI.
           <br><strong>Study area</strong>: new POIs are restricted to the selected study area boundary.
         `;
@@ -2617,6 +2623,14 @@
         closeAnnotator();
         renderAll();
       }
+
+      window.addEventListener("pagehide", () => {
+        try {
+          STORAGE.removeItem(STORAGE_KEY);
+        } catch (err) {
+          console.warn("Could not clear session storage on close", err);
+        }
+      });
 
       initAnnotatorTools();
       buildFilterOptions();
