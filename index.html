@@ -64,6 +64,10 @@
       grid-template-columns: 320px minmax(0, 1fr) 390px;
       gap: 12px;
       padding: 12px;
+      transition: grid-template-columns .22s ease;
+    }
+    .app.detail-collapsed {
+      grid-template-columns: 320px minmax(0, 1fr) 150px;
     }
     .panel, .mapWrap {
       /* use a subtle light gradient instead of dark navy */
@@ -671,7 +675,8 @@
       line-height: 1.45;
     }
     @media (max-width: 1180px) {
-      .app {
+      .app,
+      .app.detail-collapsed {
         grid-template-columns: 1fr;
         grid-template-rows: auto minmax(420px, 58vh) auto;
       }
@@ -755,10 +760,30 @@
 
     /* ── POI panel highlight when selected ───────────────────────── */
     .panel.detail-panel {
-      transition: box-shadow .2s ease;
+      transition: box-shadow .2s ease, opacity .2s ease;
     }
     .panel.detail-panel.has-selection {
       box-shadow: 0 0 0 2px rgba(96,165,250,.45), var(--shadow);
+    }
+    .panel.detail-panel.is-collapsed {
+      opacity: .88;
+    }
+    .panel.detail-panel.is-collapsed .panelBody {
+      display: none;
+    }
+    .panel.detail-panel.is-collapsed .panelHeader {
+      border-bottom: none;
+      padding-bottom: 16px;
+    }
+    .panel.detail-panel.is-collapsed .row {
+      display: none;
+    }
+    .panel.detail-panel.is-collapsed .panelTitle h1 {
+      font-size: 13px;
+    }
+    .panel.detail-panel.is-collapsed .panelTitle p {
+      font-size: 11px;
+      line-height: 1.5;
     }
 
     /* ── Scenario info icon ──────────────────────────────────────── */
@@ -870,23 +895,21 @@
           <div class="filterGrid">
             <select id="categoryFilter" class="select"></select>
             <select id="priorityFilter" class="select"></select>
-            <select id="sortSelect" class="select" style="grid-column:1 / -1;"></select>
+            <select id="stakeholderFilter" class="select"></select>
+            <select id="sortSelect" class="select"></select>
           </div>
-          <div class="hint">Filter and sort the POI overview by category and urgency.</div>
-        </div>
-
-        <div class="section">
-          <span class="sectionLabel">Quick category filter</span>
-          <div id="quickCategoryChips" class="categoryChips"></div>
+          <div class="hint">Use one filter area for category, urgency, stakeholder and sorting.</div>
         </div>
 
         <div class="section">
           <div class="row" style="justify-content:space-between;">
           <span class="sectionLabel" style="margin:0;">POI overview</span>
             <button class="btn secondary" id="exportCsvBtn" type="button">Export data table (CSV)</button>
+            <button class="btn secondary" id="exportExcelBtn" type="button">Export Excel (.xls)</button>
             <button class="btn secondary" id="exportMoodboardBtn" type="button">Export media files (ZIP)</button>
             <button class="btn secondary" id="exportPdfBtn" type="button">Export report (PDF)</button>
           </div>
+          <div class="hint">If filters are active, exports ask whether to use the filtered POIs or the whole current view.</div>
           <div id="poiList" class="list"></div>
         </div>
       </div>
@@ -907,10 +930,10 @@
             <span class="legendItem"><span class="legendColor" style="background:var(--red)"></span>Critical</span>
           </div>
         </div>
+        <div class="chipPanel">
+          <span class="studyAreaLabel" id="studyAreaChip">Study area boundary</span>
+        </div>
       </div>
-    <!-- Summary statistics panel. This empty container will be populated by
-         JavaScript to display per‑priority counts. -->
-    <div id="statsPanel" class="statsPanel"></div>
     <!-- Street view panel; content is injected via openGoogleStreetMap() -->
     <div id="streetViewContainer" class="streetViewContainer"></div>
     </section>
@@ -1018,9 +1041,12 @@
       const els = {
         addPoiBtn: $("addPoiBtn"),
         resetViewBtn: $("resetViewBtn"),
+        app: document.querySelector(".app"),
         exportCsvBtn: $("exportCsvBtn"),
+        exportExcelBtn: $("exportExcelBtn"),
         exportMoodboardBtn: $("exportMoodboardBtn"),
         exportPdfBtn: $("exportPdfBtn"),
+        undoBtn: $("undoBtn"),
         addModeBanner: $("addModeBanner"),
         saveToast: $("saveToast"),
         filterActiveBadge: $("filterActiveBadge"),
@@ -1028,6 +1054,7 @@
         searchInput: $("searchInput"),
         categoryFilter: $("categoryFilter"),
         priorityFilter: $("priorityFilter"),
+        stakeholderFilter: $("stakeholderFilter"),
         sortSelect: $("sortSelect"),
         quickCategoryChips: $("quickCategoryChips"),
         poiList: $("poiList"),
@@ -1040,6 +1067,7 @@
         deleteBtn: $("deleteBtn"),
         modePill: $("modePill"),
         addHint: $("addHint"),
+        studyAreaChip: $("studyAreaChip"),
         annotatorModal: $("annotatorModal"),
         annotatorCanvas: $("annotatorCanvas"),
         closeAnnotatorBtn: $("closeAnnotatorBtn"),
@@ -1080,6 +1108,8 @@
       let hoveredId = null;
       let quickCategory = "all";
       let markersById = new Map();
+      const undoStack = [];
+      const UNDO_LIMIT = 30;
       let listNodesById = new Map();
       let currentAnnotator = null;
 
@@ -1164,6 +1194,7 @@
           lon: Number(poi.lon),
           categoryId: poi.categoryId || "note",
           priority: validPriority(poi.priority) ? poi.priority : "medium",
+          stakeholders: Array.isArray(poi.stakeholders) ? poi.stakeholders.filter(Boolean) : [],
           tags: Array.isArray(poi.tags) ? poi.tags.filter(Boolean) : [],
           comments: Array.isArray(poi.comments) ? poi.comments.map(c => typeof c === "string" ? { id: uid(), text: c, createdAt: new Date().toISOString() } : {
             id: c.id || uid(),
@@ -1196,38 +1227,80 @@
         }).filter(img => img.dataUrl) : [];
       }
 
-      function saveState() {
-        // Persist only serialisable parts of the state to avoid storing computed getters.
-        const dataToSave = {
-          categories: state.categories,
+      function getSerializableState() {
+        return {
+          categories: JSON.parse(JSON.stringify(state.categories)),
           statusQuo: {
-            pois: state.statusQuo.pois
+            pois: JSON.parse(JSON.stringify(state.statusQuo.pois))
           },
           scenarios: state.scenarios.map(sc => ({
             id: sc.id,
             name: sc.name,
-            pois: sc.pois
+            pois: JSON.parse(JSON.stringify(sc.pois))
           })),
           activeScenarioId: state.activeScenarioId || null
         };
-        STORAGE.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
-        showToast();
+      }
+
+      function saveState(message = "✓ Saved") {
+        STORAGE.setItem(STORAGE_KEY, JSON.stringify(getSerializableState()));
+        showToast(message);
       }
 
       let _toastTimer = null;
-      function showToast() {
+      function showToast(message = "✓ Saved") {
         const t = els.saveToast;
         if (!t) return;
+        t.textContent = message;
         t.classList.add("show");
         clearTimeout(_toastTimer);
         _toastTimer = setTimeout(() => t.classList.remove("show"), 1800);
+      }
+
+      function cloneSerializableState() {
+        return JSON.parse(JSON.stringify(getSerializableState()));
+      }
+
+      function pushUndoSnapshot(label) {
+        undoStack.push({
+          label,
+          data: cloneSerializableState(),
+          selectedId
+        });
+        if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+        updateUndoButton();
+      }
+
+      function restoreFromSnapshot(snapshot) {
+        if (!snapshot?.data) return;
+        state.categories = snapshot.data.categories || DEFAULT_CATEGORIES.slice();
+        state.statusQuo = snapshot.data.statusQuo || { pois: [] };
+        state.scenarios = snapshot.data.scenarios || [];
+        state.activeScenarioId = snapshot.data.activeScenarioId || null;
+        selectedId = snapshot.selectedId || null;
+        saveState("↶ Undid last change");
+        renderAll();
+      }
+
+      function undoLastAction() {
+        const snapshot = undoStack.pop();
+        if (!snapshot) return;
+        restoreFromSnapshot(snapshot);
+        updateUndoButton();
+      }
+
+      function updateUndoButton() {
+        if (!els.undoBtn) return;
+        els.undoBtn.disabled = undoStack.length === 0;
+        els.undoBtn.title = undoStack.length ? `Undo ${undoStack[undoStack.length - 1].label}` : "Nothing to undo";
       }
 
       function updateFilterBadge() {
         const search = els.searchInput?.value?.trim();
         const cat = els.categoryFilter?.value;
         const pri = els.priorityFilter?.value;
-        const isActive = (search && search.length > 0) || (cat && cat !== "all") || (pri && pri !== "all") || (quickCategory !== "all");
+        const stakeholder = els.stakeholderFilter?.value;
+        const isActive = (search && search.length > 0) || (cat && cat !== "all") || (pri && pri !== "all") || (stakeholder && stakeholder !== "all");
         if (els.filterActiveBadge) els.filterActiveBadge.classList.toggle("visible", !!isActive);
       }
 
@@ -1350,9 +1423,13 @@
       }
 
       function buildFilterOptions() {
+        const previousCategory = els.categoryFilter?.value || "all";
+        const previousPriority = els.priorityFilter?.value || "all";
+        const previousStakeholder = els.stakeholderFilter?.value || "all";
+        const previousSort = els.sortSelect?.value || "priority_desc";
+
         els.categoryFilter.innerHTML = "";
-        const allOpt = new Option("All categories", "all");
-        els.categoryFilter.add(allOpt);
+        els.categoryFilter.add(new Option("All categories", "all"));
         state.categories.forEach(cat => {
           els.categoryFilter.add(new Option(`${cat.icon} ${cat.label}`, cat.id));
         });
@@ -1360,6 +1437,11 @@
         els.priorityFilter.innerHTML = "";
         els.priorityFilter.add(new Option("All priorities", "all"));
         PRIORITIES.forEach(item => els.priorityFilter.add(new Option(item.label, item.id)));
+
+        els.stakeholderFilter.innerHTML = "";
+        els.stakeholderFilter.add(new Option("All stakeholders", "all"));
+        const stakeholderValues = [...new Set(state.pois.flatMap(poi => Array.isArray(poi.stakeholders) ? poi.stakeholders : []))].sort((a, b) => a.localeCompare(b));
+        stakeholderValues.forEach(value => els.stakeholderFilter.add(new Option(value, value)));
 
         els.sortSelect.innerHTML = "";
         [
@@ -1371,7 +1453,10 @@
           els.sortSelect.add(new Option(label, value));
         });
 
-        renderQuickCategoryChips();
+        els.categoryFilter.value = [...els.categoryFilter.options].some(opt => opt.value === previousCategory) ? previousCategory : "all";
+        els.priorityFilter.value = [...els.priorityFilter.options].some(opt => opt.value === previousPriority) ? previousPriority : "all";
+        els.stakeholderFilter.value = [...els.stakeholderFilter.options].some(opt => opt.value === previousStakeholder) ? previousStakeholder : "all";
+        els.sortSelect.value = [...els.sortSelect.options].some(opt => opt.value === previousSort) ? previousSort : "priority_desc";
       }
 
       function getActiveScenario() {
@@ -1385,7 +1470,7 @@
 
       function ensureSelectedPoiExists() {
         if (selectedId && state.pois.some(p => p.id === selectedId)) return;
-        selectedId = state.pois[0]?.id || null;
+        selectedId = null;
       }
 
       function getScenarioOptionLabel(scenario, index) {
@@ -1420,42 +1505,31 @@
       }
 
       function renderQuickCategoryChips() {
-        els.quickCategoryChips.innerHTML = "";
-        const entries = [{ id: "all", label: "All", icon: "•" }, ...state.categories];
-        entries.forEach(cat => {
-          const chip = document.createElement("button");
-          chip.type = "button";
-          chip.className = "categoryChip" + (quickCategory === cat.id ? " active" : "");
-          chip.textContent = cat.id === "all" ? "All" : `${cat.icon} ${cat.label}`;
-          chip.addEventListener("click", () => {
-            quickCategory = cat.id;
-            renderQuickCategoryChips();
-            renderAll();
-          });
-          els.quickCategoryChips.appendChild(chip);
-        });
+        if (els.quickCategoryChips) els.quickCategoryChips.innerHTML = "";
       }
 
       function getVisiblePois() {
         const search = els.searchInput.value.trim().toLowerCase();
         const categoryFilter = els.categoryFilter.value || "all";
         const priorityFilter = els.priorityFilter.value || "all";
+        const stakeholderFilter = els.stakeholderFilter.value || "all";
         const sort = els.sortSelect.value || "priority_desc";
 
         const filtered = state.pois.filter(poi => {
           const haystack = [
             poi.title,
             poi.summary,
-            poi.tags.join(" "),
+            (poi.tags || []).join(" "),
+            (poi.stakeholders || []).join(" "),
             poi.comments.map(c => c.text).join(" "),
             (poi.futureImages || []).map(img => `${img.title} ${img.description}`).join(" ")
           ].join(" ").toLowerCase();
 
           const matchesSearch = !search || haystack.includes(search);
           const matchesCategory = categoryFilter === "all" || poi.categoryId === categoryFilter;
-          const matchesQuick = quickCategory === "all" || poi.categoryId === quickCategory;
           const matchesPriority = priorityFilter === "all" || poi.priority === priorityFilter;
-          return matchesSearch && matchesCategory && matchesQuick && matchesPriority;
+          const matchesStakeholder = stakeholderFilter === "all" || (poi.stakeholders || []).includes(stakeholderFilter);
+          return matchesSearch && matchesCategory && matchesPriority && matchesStakeholder;
         });
 
         filtered.sort((a, b) => {
@@ -1499,7 +1573,7 @@
             <div class="tooltipMeta">
               Category: ${escapeHtml(category.label)}<br>
               Urgency score: ${priority.score} / 4 (${escapeHtml(priority.label)})<br>
-              ${poi.author ? `Added by: ${escapeHtml(poi.author)}<br>` : ""}Comments: ${poi.comments.length}<br>
+              ${poi.author ? `Added by: ${escapeHtml(poi.author)}<br>` : ""}${(poi.stakeholders || []).length ? `Stakeholders: ${escapeHtml((poi.stakeholders || []).join(", "))}<br>` : ""}Comments: ${poi.comments.length}<br>
               Images: ${poi.images.length}
             </div>
             ${imageHtml}
@@ -1532,6 +1606,7 @@
               marker.setLatLng([poi.lat, poi.lon]);
               return;
             }
+            pushUndoSnapshot("POI move");
             poi.lat = latlng.lat;
             poi.lon = latlng.lng;
             saveState();
@@ -1615,7 +1690,8 @@
               </div>
             </div>
             <div class="badges">
-              ${poi.tags.slice(0, 3).map(tag => `<span class="badge">${escapeHtml(tag)}</span>`).join("")}
+              ${(poi.stakeholders || []).slice(0, 2).map(name => `<span class="badge">👥 ${escapeHtml(name)}</span>`).join("")}
+              ${(poi.tags || []).slice(0, 2).map(tag => `<span class="badge"># ${escapeHtml(tag)}</span>`).join("")}
             </div>
             <div class="stats">
               <span>💬 ${poi.comments.length}</span>
@@ -1650,32 +1726,27 @@
 
       function renderDetail() {
         const poi = state.pois.find(p => p.id === selectedId);
-        // Always hide the Street View panel by default.  It will be shown only
-        // when the user explicitly requests Street View via the dedicated button.
         {
           const container = document.getElementById('streetViewContainer');
           if (container) container.style.display = 'none';
         }
-        // Enable or disable panel buttons based on whether a POI is selected.
         els.zoomBtn.disabled = !poi;
         els.deleteBtn.disabled = !poi;
         if (els.streetViewBtn) els.streetViewBtn.disabled = !poi;
 
+        const collapsed = !poi;
+        if (els.detailPanel) els.detailPanel.classList.toggle("is-collapsed", collapsed);
+        if (els.app) els.app.classList.toggle("detail-collapsed", collapsed);
+
         if (!poi) {
-          els.detailTitle.textContent = "POI details";
-          els.detailSub.textContent = `View: ${getActiveViewLabel()} · Click a marker or a card to open it in the sidebar.`;
+          els.detailTitle.textContent = "Select a POI";
+          els.detailSub.textContent = `View: ${getActiveViewLabel()} · Click a marker or a card to open details.`;
           els.detailBody.className = "detailEmpty";
-        // Show a simple description of what this tool supports when nothing is selected.
-        // We intentionally keep this message brief and avoid exposing internal variables.
-        els.detailBody.innerHTML = `
-            <div style="margin-bottom:12px;font-weight:700;font-size:13px;color:var(--text);">How to use this tool</div>
+          els.detailBody.innerHTML = `
+            <div style="margin-bottom:12px;font-weight:700;font-size:13px;color:var(--text);">POI details appear here</div>
             <div style="display:flex;flex-direction:column;gap:8px;font-size:12px;color:var(--muted);line-height:1.55;">
-              <div>📍 <strong>Place a POI:</strong> Click anywhere on the map inside the study area — or press <strong>Add POI</strong> first.</div>
-              <div>🖱️ <strong>Drag to reposition:</strong> Drag any marker to move it to the correct location.</div>
-              <div>🔍 <strong>Browse POIs:</strong> Click a marker or a card in the left panel to see its details here.</div>
-              <div>✏️ <strong>Annotate images:</strong> Hover over an uploaded image and click the <em>Annotate</em> button.</div>
-              <div>📂 <strong>Scenarios:</strong> Create alternative map versions using <em>Add scenario</em> — the base Status Quo is always preserved.</div>
-              <div>📤 <strong>Export:</strong> Download a data table (CSV), media files (ZIP), or a printable report (PDF).</div>
+              <div>Click a POI on the map or from the overview list.</div>
+              <div>The detail panel stays secondary until a POI is selected.</div>
             </div>
           `;
           return;
@@ -1699,27 +1770,12 @@
         `;
         wrap.appendChild(topInfo);
 
-        // Title editor: update the POI title directly.  We no longer
-        // forcibly replace an empty title with "Untitled POI" here; blank
-        // titles are allowed and the list rendering will fall back to
-        // displaying "Untitled POI" if the underlying value is empty.
         wrap.appendChild(makeField("Title", textInput(poi.title, value => {
-          // Update the underlying POI title as the user types.  Avoid a full
-          // re-render on every keystroke because that forces the input to be
-          // recreated and the cursor will jump to the end or the field will
-          // lose focus.  Instead update only the parts of the UI that depend
-          // on the title (the list of cards, marker tooltips and the header
-          // at the top of the detail panel).
           poi.title = value;
           saveState();
-          // Update the header title immediately so the user sees the change.
           if (els && els.detailTitle) {
             els.detailTitle.textContent = value || "Untitled POI";
           }
-          // Debounce updates to the list and markers.  Clear any pending
-          // updates and schedule a new one.  This prevents rapid re-renders
-          // while typing, which previously caused the input to reset or miss
-          // keystrokes on some browsers.
           if (titleChangeTimer) clearTimeout(titleChangeTimer);
           titleChangeTimer = setTimeout(() => {
             renderList();
@@ -1727,14 +1783,12 @@
           }, 200);
         })));
 
-        // Description field for the POI (replaces the old "Summary / note" wording)
         wrap.appendChild(makeField("Description", textArea(poi.summary, value => {
           poi.summary = value;
           saveState();
           renderList();
         })));
 
-        // Author field — records who placed this POI (useful for collaborative sessions)
         wrap.appendChild(makeField("Added by (optional)", textInput(poi.author || "", value => {
           poi.author = value;
           saveState();
@@ -1744,12 +1798,16 @@
         metaGrid.className = "metaGrid";
 
         metaGrid.appendChild(makeField("Category", categorySelect(poi.categoryId, value => {
+          if (poi.categoryId === value) return;
+          pushUndoSnapshot("category change");
           poi.categoryId = value;
           saveState();
           renderAll();
         }), true));
 
         metaGrid.appendChild(makeField("Priority", prioritySelect(poi.priority, value => {
+          if (poi.priority === value) return;
+          pushUndoSnapshot("priority change");
           poi.priority = value;
           saveState();
           renderAll();
@@ -1758,6 +1816,7 @@
         wrap.appendChild(metaGrid);
 
         wrap.appendChild(renderCategoryCreator(poi));
+        wrap.appendChild(renderStakeholderEditor(poi));
         wrap.appendChild(renderTagEditor(poi));
         wrap.appendChild(renderCommentsEditor(poi));
         wrap.appendChild(renderImagesEditor(poi));
@@ -1765,16 +1824,11 @@
 
         const footer = document.createElement("div");
         footer.className = "footerNote";
-        // Provide general notes about how POIs behave rather than referring to a
-        // specific "status quo" build or named study area.  The marker and
-        // priority colour explanations remain unchanged.  Persistence is
-        // explained generically, and the study area note refers to the loaded
-        // boundary without naming Twekkelerveld.
         footer.innerHTML = `
           <strong>Marker logic</strong>: standard droplet marker, category icon in the circle, priority colour on the marker body.
           <br><strong>Priority colours</strong>: green = low, yellow = medium, orange = high, red = critical.
-          <br><strong>POI persistence</strong>: POIs stay available only during the current browser tab session. After you close the prototype, it starts fresh the next time you open it.
-          <br><strong>Inspiration export</strong>: future moodboard images can be downloaded as one ZIP with a folder per POI.
+          <br><strong>Undo</strong>: the last structural change can be undone from the main toolbar.
+          <br><strong>Export scope</strong>: when filters are active, exports let you choose filtered POIs or the whole current view.
           <br><strong>Study area</strong>: new POIs are restricted to the selected study area boundary.
         `;
         wrap.appendChild(footer);
@@ -1846,17 +1900,35 @@
 
         const label = document.createElement("span");
         label.className = "sectionLabel";
-        label.textContent = "Create custom category";
+        label.textContent = "Custom category (optional)";
         section.appendChild(label);
+
+        const hint = document.createElement("div");
+        hint.className = "hint";
+        hint.textContent = "Use the curated default categories first. Only add a custom category if none of them fit your workshop case.";
+        section.appendChild(hint);
+
+        const details = document.createElement("details");
+        details.style.marginTop = "10px";
+        const summary = document.createElement("summary");
+        summary.style.cursor = "pointer";
+        summary.style.fontSize = "13px";
+        summary.style.fontWeight = "700";
+        summary.textContent = "Add custom category";
+        details.appendChild(summary);
+
+        const inner = document.createElement("div");
+        inner.style.marginTop = "10px";
 
         const nameInput = document.createElement("input");
         nameInput.className = "input";
         nameInput.placeholder = "New category name";
-        section.appendChild(nameInput);
+        inner.appendChild(nameInput);
 
         let chosenIcon = "📝";
         const iconGrid = document.createElement("div");
         iconGrid.className = "iconPicker";
+        iconGrid.style.marginTop = "10px";
         ICON_LIBRARY.forEach(icon => {
           const btn = document.createElement("button");
           btn.type = "button";
@@ -1868,7 +1940,7 @@
           });
           iconGrid.appendChild(btn);
         });
-        section.appendChild(iconGrid);
+        inner.appendChild(iconGrid);
 
         const addBtn = document.createElement("button");
         addBtn.type = "button";
@@ -1881,6 +1953,7 @@
             alert("Enter a category name first.");
             return;
           }
+          pushUndoSnapshot("custom category creation");
           const slug = slugify(labelText);
           let existing = state.categories.find(cat => cat.id === slug);
           if (!existing) {
@@ -1892,12 +1965,78 @@
           buildFilterOptions();
           renderAll();
         });
-        section.appendChild(addBtn);
+        inner.appendChild(addBtn);
+        details.appendChild(inner);
+        section.appendChild(details);
+        return section;
+      }
 
-        const note = document.createElement("div");
-        note.className = "hint";
-        note.textContent = 'A "Note" category is included by default.';
-        section.appendChild(note);
+      function renderStakeholderEditor(poi) {
+        const section = document.createElement("div");
+        section.className = "section";
+
+        const label = document.createElement("span");
+        label.className = "sectionLabel";
+        label.textContent = "Stakeholders";
+        section.appendChild(label);
+
+        const hint = document.createElement("div");
+        hint.className = "hint";
+        hint.textContent = "Add people, groups or organisations linked to this POI. These can also be filtered from the overview.";
+        section.appendChild(hint);
+
+        const tagRow = document.createElement("div");
+        tagRow.className = "row";
+        tagRow.style.marginTop = "8px";
+
+        const input = document.createElement("input");
+        input.className = "input";
+        input.placeholder = "Type a stakeholder and press Add";
+        input.style.flex = "1 1 200px";
+        tagRow.appendChild(input);
+
+        const add = document.createElement("button");
+        add.type = "button";
+        add.className = "btn secondary";
+        add.textContent = "Add stakeholder";
+        add.addEventListener("click", () => {
+          const value = input.value.trim();
+          if (!value) return;
+          if (!(poi.stakeholders || []).includes(value)) {
+            pushUndoSnapshot("stakeholder added");
+            if (!Array.isArray(poi.stakeholders)) poi.stakeholders = [];
+            poi.stakeholders.push(value);
+            input.value = "";
+            saveState();
+            renderAll();
+          }
+        });
+        tagRow.appendChild(add);
+        section.appendChild(tagRow);
+
+        const tagsWrap = document.createElement("div");
+        tagsWrap.className = "tagsWrap";
+        tagsWrap.style.marginTop = "10px";
+        if (!(poi.stakeholders || []).length) {
+          const empty = document.createElement("div");
+          empty.className = "hint";
+          empty.textContent = "No stakeholders yet.";
+          tagsWrap.appendChild(empty);
+        } else {
+          poi.stakeholders.forEach(name => {
+            const el = document.createElement("span");
+            el.className = "tag";
+            el.innerHTML = `👥 ${escapeHtml(name)} <button type="button" aria-label="Remove stakeholder">×</button>`;
+            el.querySelector("button").addEventListener("click", () => {
+              pushUndoSnapshot("stakeholder removed");
+              poi.stakeholders = poi.stakeholders.filter(item => item !== name);
+              saveState();
+              renderAll();
+            });
+            tagsWrap.appendChild(el);
+          });
+        }
+        section.appendChild(tagsWrap);
         return section;
       }
 
@@ -1910,8 +2049,14 @@
         label.textContent = "Tags";
         section.appendChild(label);
 
+        const helper = document.createElement("div");
+        helper.className = "hint";
+        helper.textContent = "Optional keywords such as street names, themes or workshop topics. Use the stakeholder field separately for people or organisations.";
+        section.appendChild(helper);
+
         const tagRow = document.createElement("div");
         tagRow.className = "row";
+        tagRow.style.marginTop = "8px";
 
         const input = document.createElement("input");
         input.className = "input";
@@ -1926,10 +2071,13 @@
         add.addEventListener("click", () => {
           const value = input.value.trim();
           if (!value) return;
-          if (!poi.tags.includes(value)) poi.tags.push(value);
-          input.value = "";
-          saveState();
-          renderAll();
+          if (!poi.tags.includes(value)) {
+            pushUndoSnapshot("tag added");
+            poi.tags.push(value);
+            input.value = "";
+            saveState();
+            renderAll();
+          }
         });
         tagRow.appendChild(add);
         section.appendChild(tagRow);
@@ -1947,6 +2095,7 @@
             el.className = "tag";
             el.innerHTML = `${escapeHtml(tag)} <button type="button" aria-label="Remove tag">×</button>`;
             el.querySelector("button").addEventListener("click", () => {
+              pushUndoSnapshot("tag removed");
               poi.tags = poi.tags.filter(t => t !== tag);
               saveState();
               renderAll();
@@ -1980,6 +2129,7 @@
         addBtn.addEventListener("click", () => {
           const text = area.value.trim();
           if (!text) return;
+          pushUndoSnapshot("comment added");
           poi.comments.unshift({ id: uid(), text, createdAt: new Date().toISOString() });
           area.value = "";
           saveState();
@@ -2015,6 +2165,7 @@
             });
             item.appendChild(text);
             item.querySelector("button").addEventListener("click", () => {
+              pushUndoSnapshot("comment removed");
               poi.comments = poi.comments.filter(c => c.id !== comment.id);
               saveState();
               renderAll();
@@ -2171,6 +2322,7 @@
             card.appendChild(meta);
 
             card.querySelector('[data-action="remove"]').addEventListener("click", () => {
+              pushUndoSnapshot("image removed");
               poi[options.collectionKey] = (poi[options.collectionKey] || []).filter(imgItem => imgItem.id !== image.id);
               saveState();
               renderAll();
@@ -2200,6 +2352,7 @@
         const defaultTitle = file.name.replace(/\.[^.]+$/, "") || (collectionKey === "futureImages" ? "Inspiration image" : "Image");
         const title = prompt(options.titlePrompt || "Image title", defaultTitle) || defaultTitle;
         const description = prompt(options.descriptionPrompt || "Image description", "") || "";
+        pushUndoSnapshot(collectionKey === "futureImages" ? "inspiration image added" : "image added");
         if (!Array.isArray(poi[collectionKey])) poi[collectionKey] = [];
         poi[collectionKey].push({
           id: uid(),
@@ -2292,12 +2445,13 @@
         return activeScenario ? activeScenario.pois : state.statusQuo.pois;
       }
 
-      async function exportInspirationZip() {
+      async function exportInspirationZip(poisOverride = null) {
         if (!window.JSZip) {
           alert("ZIP export is not available because the JSZip library could not be loaded.");
           return;
         }
-        const poisWithImages = state.pois.filter(poi => Array.isArray(poi.futureImages) && poi.futureImages.length);
+        const sourcePois = Array.isArray(poisOverride) ? poisOverride : chooseExportPois("ZIP export");
+        const poisWithImages = sourcePois.filter(poi => Array.isArray(poi.futureImages) && poi.futureImages.length);
         if (!poisWithImages.length) {
           alert("There are no inspiration images to export in the current view.");
           return;
@@ -2344,12 +2498,14 @@
           lon: latlng.lng,
           categoryId: "note",
           priority: "medium",
+          stakeholders: [],
           tags: [],
           comments: [],
           images: [],
           futureImages: [],
           createdAt: new Date().toISOString()
         });
+        pushUndoSnapshot("POI creation");
         state.pois.unshift(poi);
         selectedId = poi.id;
         saveState();
@@ -2362,6 +2518,7 @@
         const poi = state.pois.find(p => p.id === selectedId);
         if (!poi) return;
         if (!confirm(`Delete "${poi.title}"?`)) return;
+        pushUndoSnapshot("POI deletion");
         state.pois = state.pois.filter(p => p.id !== selectedId);
         selectedId = null;
         saveState();
@@ -2383,10 +2540,8 @@
         // initialisation code at the bottom of the script and the scenario
         // management functions for where they are called.
 
-        // Rebuild the view selector so that POI counts stay up‑to‑date.  This
-        // preserves the currently selected scenario because `buildViewOptions()`
-        // sets the `select.value` to `state.activeScenarioId` or `statusQuo`.
         buildViewOptions();
+        buildFilterOptions();
 
         // Update the mode pill and hint to reflect whether we are in add mode or
         // browse mode and to display the current view label (status quo or
@@ -2410,7 +2565,6 @@
         renderList();
         renderDetail();
 
-        // Refresh the dashboard summary counts every time the UI updates.
         updateStats();
 
         // Update filter active badge
@@ -2424,23 +2578,7 @@
       // The result is four cards (low, medium, high, critical) coloured to match the
       // marker colours. This helps users quickly gauge the distribution of tasks.
       function updateStats() {
-        const counts = { low: 0, medium: 0, high: 0, critical: 0 };
-        state.pois.forEach(poi => {
-          if (counts.hasOwnProperty(poi.priority)) counts[poi.priority]++;
-        });
-        const priorityOrder = ["low", "medium", "high", "critical"];
-        const html = priorityOrder.map(id => {
-          const priority = getPriority(id);
-          const count = counts[id] || 0;
-          return `
-            <div class="statsCard" style="border-left: 4px solid ${priority.color};">
-              <span class="title">${escapeHtml(priority.label)}</span>
-              <span class="value">${count}</span>
-            </div>
-          `;
-        }).join("");
-        const panel = document.getElementById("statsPanel");
-        if (panel) panel.innerHTML = html;
+        return;
       }
 
       function zoomToSelected() {
@@ -2451,18 +2589,42 @@
         if (marker) marker.openTooltip();
       }
 
-      function exportCsv() {
-        // Build a CSV containing the core POI data.  We deliberately omit
-        // image metadata and snapshots here because embedding large base64
-        // images into a CSV can lead to huge files and cause problems when
-        // opening the CSV in spreadsheet programs.  The exported file will
-        // therefore include only text‐based fields and the coordinates of
-        // each point.  If images are needed they can be exported via a
-        // separate mechanism.
+      function hasActiveFilters() {
+        const search = els.searchInput.value.trim();
+        const categoryFilter = els.categoryFilter.value || "all";
+        const priorityFilter = els.priorityFilter.value || "all";
+        const stakeholderFilter = els.stakeholderFilter.value || "all";
+        return Boolean(search) || categoryFilter !== "all" || priorityFilter !== "all" || stakeholderFilter !== "all";
+      }
+
+      function chooseExportPois(label) {
+        const filtered = getVisiblePois();
+        const all = state.pois.slice();
+        if (!hasActiveFilters()) return all;
+        const useFiltered = confirm(`Filters are active for ${label}.
+
+Press OK to export only the filtered POIs (${filtered.length}).
+Press Cancel to export the whole current view (${all.length}).`);
+        return useFiltered ? filtered : all;
+      }
+
+      function downloadBlob(blob, filename) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      }
+
+      function buildExportRows(pois) {
         const rows = [
           [
             "title",
             "author",
+            "stakeholders",
             "category",
             "priority",
             "urgency_score",
@@ -2478,10 +2640,11 @@
             "created_at"
           ]
         ];
-        state.pois.forEach(poi => {
+        pois.forEach(poi => {
           rows.push([
             poi.title,
             poi.author || "",
+            (poi.stakeholders || []).join("|"),
             getCategory(poi.categoryId).label,
             getPriority(poi.priority).label,
             String(getUrgencyScore(poi.priority)),
@@ -2497,17 +2660,25 @@
             poi.createdAt
           ]);
         });
+        return rows;
+      }
+
+      function exportExcel() {
+        const pois = chooseExportPois("Excel export");
+        const rows = buildExportRows(pois);
+        const headers = rows[0];
+        const bodyRows = rows.slice(1).map(row => `<tr>${row.map(value => `<td>${escapeHtml(value)}</td>`).join("")}</tr>`).join("");
+        const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>table{border-collapse:collapse;font-family:Arial,sans-serif;font-size:12px}th,td{border:1px solid #cbd5e1;padding:6px 8px;text-align:left;}th{background:#e2e8f0;}</style></head><body><table><thead><tr>${headers.map(h => `<th>${escapeHtml(h)}</th>`).join("")}</tr></thead><tbody>${bodyRows}</tbody></table></body></html>`;
+        const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
+        downloadBlob(blob, `Point of Interest_${slugify(getActiveViewLabel()) || "view"}.xls`);
+      }
+
+      function exportCsv() {
+        const pois = chooseExportPois("CSV export");
+        const rows = buildExportRows(pois);
         const csv = rows.map(row => row.map(csvEscape).join(",")).join("\n");
         const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        // Always use a descriptive file name regardless of deployment environment.
-        a.download = `Point of Interest_${slugify(getActiveViewLabel()) || "view"}.csv`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
+        downloadBlob(blob, `Point of Interest_${slugify(getActiveViewLabel()) || "view"}.csv`);
       }
 
       function csvEscape(value) {
@@ -2520,8 +2691,7 @@
       }
 
       function exportAsPdf() {
-        // Generate a simple HTML report and open it in a new tab for printing/saving as PDF.
-        const pois = state.pois;
+        const pois = chooseExportPois("PDF export");
         const viewLabel = escapeHtml(getActiveViewLabel());
         const date = new Date().toLocaleDateString();
 
@@ -2529,9 +2699,10 @@
           const cat = getCategory(poi.categoryId);
           const pri = getPriority(poi.priority);
           const author = poi.author ? `<br><small style="color:#64748b">Added by: ${escapeHtml(poi.author)}</small>` : "";
+          const stakeholders = (poi.stakeholders || []).length ? `<br><small style="color:#64748b">Stakeholders: ${escapeHtml((poi.stakeholders || []).join(", "))}</small>` : "";
           return `
             <tr>
-              <td><strong>${escapeHtml(poi.title)}</strong>${author}</td>
+              <td><strong>${escapeHtml(poi.title)}</strong>${author}${stakeholders}</td>
               <td>${escapeHtml(cat.icon)} ${escapeHtml(cat.label)}</td>
               <td><span style="color:${pri.color};font-weight:700">${escapeHtml(pri.label)}</span></td>
               <td>${escapeHtml(poi.tags.join(", ") || "—")}</td>
@@ -2605,8 +2776,10 @@
       els.addPoiBtn.addEventListener("click", () => toggleAddMode());
       els.resetViewBtn.addEventListener("click", () => map.fitBounds(studyAreaBounds, { padding: [14, 14] }));
       els.exportCsvBtn.addEventListener("click", exportCsv);
-      els.exportMoodboardBtn.addEventListener("click", exportInspirationZip);
+      if (els.exportExcelBtn) els.exportExcelBtn.addEventListener("click", exportExcel);
+      els.exportMoodboardBtn.addEventListener("click", () => exportInspirationZip());
       if (els.exportPdfBtn) els.exportPdfBtn.addEventListener("click", exportAsPdf);
+      if (els.undoBtn) els.undoBtn.addEventListener("click", undoLastAction);
       els.zoomBtn.addEventListener("click", zoomToSelected);
       // When the Street View button is clicked, open Street View for the selected POI
       if (els.streetViewBtn) {
@@ -2663,6 +2836,7 @@
         els.searchInput.addEventListener(evt, renderAll);
         els.categoryFilter.addEventListener(evt, renderAll);
         els.priorityFilter.addEventListener(evt, renderAll);
+        els.stakeholderFilter.addEventListener(evt, renderAll);
         els.sortSelect.addEventListener(evt, renderAll);
       });
 
@@ -2890,7 +3064,9 @@
       initAnnotatorTools();
       buildFilterOptions();
       buildViewOptions();
+      if (els.studyAreaChip) els.studyAreaChip.textContent = `Study area boundary · ${getStudyAreaName()}`;
       els.sortSelect.value = "priority_desc";
+      updateUndoButton();
       renderAll();
     })();
   </script>
