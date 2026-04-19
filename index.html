@@ -681,6 +681,24 @@
         grid-template-rows: auto minmax(420px, 58vh) auto;
       }
     }
+    @media (max-width: 720px) {
+      .modalCard {
+        padding: 14px;
+      }
+      .toolGroup {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.96));
+        padding-bottom: 8px;
+      }
+      .metaGrid {
+        grid-template-columns: 1fr;
+      }
+      .imageThumb {
+        height: 150px;
+      }
+    }
 
     /* ── Add-mode banner ─────────────────────────────────────────── */
     .addModeBanner {
@@ -881,6 +899,7 @@
           <button class="btn secondary" id="renameScenarioBtn" type="button">Rename scenario</button>
           <button class="btn danger" id="deleteScenarioBtn" type="button">Delete scenario</button>
           <button class="btn secondary" id="resetViewBtn" type="button">Reset view</button>
+          <button class="btn secondary" id="undoBtn" type="button" disabled title="Nothing to undo">Undo</button>
           <button class="btn" id="addPoiBtn" type="button">Add POI</button>
         </div>
       </div>
@@ -920,7 +939,7 @@
       <div class="mapTopBar">
         <div class="chipPanel">
           <span id="modePill">Browse mode</span>
-          <small id="addHint">Click Add POI, then click inside the study area to place one.</small>
+          <small id="addHint">Click inside the study area to place a POI, or use Add POI for explicit add mode.</small>
         </div>
         <div class="chipPanel">
           <div class="legend">
@@ -956,7 +975,7 @@
           This interface supports the core POI workflow: choose a category and icon,
           assign a priority, add tags, comments and images (with titles and descriptions),
           annotate images, hover over markers for a quick overview, filter and sort the list,
-          and export your data to CSV or inspiration ZIPs. New POIs must fall within the selected study area boundary.
+          and export your data to CSV, Excel, PDF or inspiration ZIPs. New POIs must fall within the selected study area boundary.
         </div>
       </div>
     </aside>
@@ -2223,7 +2242,7 @@
 
         const fileInput = document.createElement("input");
         fileInput.type = "file";
-        fileInput.accept = "image/*";
+        fileInput.accept = "image/png,image/jpeg,image/webp,image/gif";
         fileInput.multiple = true;
         fileInput.className = "input";
         fileInput.style.flex = "1 1 220px";
@@ -2250,7 +2269,7 @@
 
         const note = document.createElement("div");
         note.className = "hint";
-        note.textContent = options.uploadHint;
+        note.textContent = `${options.uploadHint} Supported formats: PNG, JPG/JPEG, WebP, GIF.`;
         section.appendChild(note);
 
         const list = document.createElement("div");
@@ -2553,7 +2572,7 @@
           : `Browse mode · ${getActiveViewLabel()}`;
         els.addHint.textContent = addMode
           ? `Click on the map to place a new POI inside ${getStudyAreaName()} for ${getActiveViewLabel()}.`
-          : `Click Add POI, then click inside the ${getStudyAreaName()} study area to place one in ${getActiveViewLabel()}.`;
+          : `Click inside the ${getStudyAreaName()} study area to place a POI in ${getActiveViewLabel()}, or use Add POI to enter explicit add mode.`;
 
         // Render the map markers, list panel and detail panel for the current
         // view.  These functions will read from `state.pois`, which is a
