@@ -677,6 +677,107 @@
       }
     }
 
+    /* ── Add-mode banner ─────────────────────────────────────────── */
+    .addModeBanner {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 9000;
+      background: #2563eb;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      text-align: center;
+      padding: 8px 16px;
+      letter-spacing: .02em;
+      box-shadow: 0 2px 8px rgba(37,99,235,.35);
+      pointer-events: none;
+    }
+    .addModeBanner.visible { display: block; }
+    body.addModeActive { cursor: crosshair !important; }
+    body.addModeActive #map { cursor: crosshair !important; }
+
+    /* ── Autosave toast ──────────────────────────────────────────── */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 8000;
+      background: #1e293b;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 9px 16px;
+      border-radius: 10px;
+      box-shadow: 0 4px 14px rgba(0,0,0,.22);
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity .22s ease, transform .22s ease;
+      pointer-events: none;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    /* ── Filter active badge ─────────────────────────────────────── */
+    .filterActiveBadge {
+      display: none;
+      background: #2563eb;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 800;
+      border-radius: 999px;
+      padding: 2px 7px;
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+    .filterActiveBadge.visible { display: inline-block; }
+
+    /* ── Annotate overlay on thumbnails ─────────────────────────── */
+    .imageCardWrap {
+      position: relative;
+    }
+    .annotateOverlayBtn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: rgba(0,0,0,.55);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 5px 9px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity .15s ease;
+      z-index: 10;
+    }
+    .imageCardWrap:hover .annotateOverlayBtn { opacity: 1; }
+
+    /* ── POI panel highlight when selected ───────────────────────── */
+    .panel.detail-panel {
+      transition: box-shadow .2s ease;
+    }
+    .panel.detail-panel.has-selection {
+      box-shadow: 0 0 0 2px rgba(96,165,250,.45), var(--shadow);
+    }
+
+    /* ── Scenario info icon ──────────────────────────────────────── */
+    .scenarioInfo {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px; height: 16px;
+      border-radius: 999px;
+      background: rgba(96,165,250,.18);
+      color: var(--accent);
+      font-size: 10px;
+      font-weight: 800;
+      cursor: help;
+      margin-left: 4px;
+      vertical-align: middle;
+      flex-shrink: 0;
+    }
+
     /*
      * Dashboard statistics panel
      * This panel floats above the map at the bottom and summarises the number of POIs per
@@ -725,6 +826,11 @@
   </style>
 </head>
 <body>
+  <!-- Add-mode banner -->
+  <div class="addModeBanner" id="addModeBanner">📍 Click anywhere inside the study area to place a new POI — or press Esc to cancel</div>
+  <!-- Autosave toast -->
+  <div class="toast" id="saveToast">✓ Saved</div>
+
   <div class="app">
     <aside class="panel">
       <div class="panelHeader">
@@ -742,7 +848,10 @@
         </div>
         <div class="row">
           <!-- Scenario selector and creation button -->
-          <select id="viewSelect" class="select"></select>
+          <div style="display:flex;align-items:center;gap:4px;">
+            <select id="viewSelect" class="select"></select>
+            <span class="scenarioInfo" title="Scenarios let you create alternative versions of the map — for example a 'current situation' vs a 'future plan'. Each scenario has its own set of POIs. The base Status Quo is always preserved.">i</span>
+          </div>
           <button class="btn secondary" id="addScenarioBtn" type="button">Add scenario</button>
           <button class="btn secondary" id="renameScenarioBtn" type="button">Rename scenario</button>
           <button class="btn danger" id="deleteScenarioBtn" type="button">Delete scenario</button>
@@ -757,7 +866,7 @@
         </div>
 
         <div class="section">
-          <span class="sectionLabel">Filter</span>
+          <span class="sectionLabel">Filter <span class="filterActiveBadge" id="filterActiveBadge">active</span></span>
           <div class="filterGrid">
             <select id="categoryFilter" class="select"></select>
             <select id="priorityFilter" class="select"></select>
@@ -773,9 +882,10 @@
 
         <div class="section">
           <div class="row" style="justify-content:space-between;">
-            <span class="sectionLabel" style="margin:0;">POI overview</span>
-            <button class="btn secondary" id="exportCsvBtn" type="button">Export CSV</button>
-            <button class="btn secondary" id="exportMoodboardBtn" type="button">Export inspiration ZIP</button>
+          <span class="sectionLabel" style="margin:0;">POI overview</span>
+            <button class="btn secondary" id="exportCsvBtn" type="button">Export data table (CSV)</button>
+            <button class="btn secondary" id="exportMoodboardBtn" type="button">Export media files (ZIP)</button>
+            <button class="btn secondary" id="exportPdfBtn" type="button">Export report (PDF)</button>
           </div>
           <div id="poiList" class="list"></div>
         </div>
@@ -805,7 +915,7 @@
     <div id="streetViewContainer" class="streetViewContainer"></div>
     </section>
 
-    <aside class="panel">
+    <aside class="panel detail-panel" id="detailPanel">
       <div class="panelHeader">
         <div class="panelTitle">
           <h1 id="detailTitle">POI details</h1>
@@ -910,6 +1020,11 @@
         resetViewBtn: $("resetViewBtn"),
         exportCsvBtn: $("exportCsvBtn"),
         exportMoodboardBtn: $("exportMoodboardBtn"),
+        exportPdfBtn: $("exportPdfBtn"),
+        addModeBanner: $("addModeBanner"),
+        saveToast: $("saveToast"),
+        filterActiveBadge: $("filterActiveBadge"),
+        detailPanel: $("detailPanel"),
         searchInput: $("searchInput"),
         categoryFilter: $("categoryFilter"),
         priorityFilter: $("priorityFilter"),
@@ -1044,6 +1159,7 @@
           id: poi.id || uid(),
           title: poi.title || "Untitled POI",
           summary: poi.summary || "",
+          author: poi.author || "",
           lat: Number(poi.lat),
           lon: Number(poi.lon),
           categoryId: poi.categoryId || "note",
@@ -1095,6 +1211,24 @@
           activeScenarioId: state.activeScenarioId || null
         };
         STORAGE.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
+        showToast();
+      }
+
+      let _toastTimer = null;
+      function showToast() {
+        const t = els.saveToast;
+        if (!t) return;
+        t.classList.add("show");
+        clearTimeout(_toastTimer);
+        _toastTimer = setTimeout(() => t.classList.remove("show"), 1800);
+      }
+
+      function updateFilterBadge() {
+        const search = els.searchInput?.value?.trim();
+        const cat = els.categoryFilter?.value;
+        const pri = els.priorityFilter?.value;
+        const isActive = (search && search.length > 0) || (cat && cat !== "all") || (pri && pri !== "all") || (quickCategory !== "all");
+        if (els.filterActiveBadge) els.filterActiveBadge.classList.toggle("visible", !!isActive);
       }
 
       function uid() {
@@ -1210,6 +1344,9 @@
           ? `Click on the map to place a new POI inside ${getStudyAreaName()}.`
           : `Click Add POI, then click inside the ${getStudyAreaName()} study area to place one.`;
         map.getContainer().style.cursor = addMode ? "crosshair" : "";
+        // Banner + body class for clear mode indication
+        if (els.addModeBanner) els.addModeBanner.classList.toggle("visible", addMode);
+        document.body.classList.toggle("addModeActive", addMode);
       }
 
       function buildFilterOptions() {
@@ -1362,7 +1499,7 @@
             <div class="tooltipMeta">
               Category: ${escapeHtml(category.label)}<br>
               Urgency score: ${priority.score} / 4 (${escapeHtml(priority.label)})<br>
-              Comments: ${poi.comments.length}<br>
+              ${poi.author ? `Added by: ${escapeHtml(poi.author)}<br>` : ""}Comments: ${poi.comments.length}<br>
               Images: ${poi.images.length}
             </div>
             ${imageHtml}
@@ -1383,7 +1520,22 @@
               iconSize: [34, 34],
               iconAnchor: [17, 34],
               tooltipAnchor: [0, -28]
-            })
+            }),
+            draggable: true
+          });
+
+          // Allow repositioning by drag
+          marker.on("dragend", () => {
+            const latlng = marker.getLatLng();
+            if (!isInsideStudyArea(latlng)) {
+              alert(`Please keep the POI inside the ${getStudyAreaName()} study area.`);
+              marker.setLatLng([poi.lat, poi.lon]);
+              return;
+            }
+            poi.lat = latlng.lat;
+            poi.lon = latlng.lng;
+            saveState();
+            renderAll();
           });
 
           marker.bindTooltip(tooltipHtml(poi), {
@@ -1516,10 +1668,15 @@
         // Show a simple description of what this tool supports when nothing is selected.
         // We intentionally keep this message brief and avoid exposing internal variables.
         els.detailBody.innerHTML = `
-            This interface supports the core POI workflow: choose a category and icon,
-            assign a priority, add tags, comments and images (with titles and descriptions),
-            annotate images, hover over markers for a quick overview, filter and sort the list,
-            and export your data to CSV or inspiration ZIPs. New POIs must fall within the selected study area boundary.
+            <div style="margin-bottom:12px;font-weight:700;font-size:13px;color:var(--text);">How to use this tool</div>
+            <div style="display:flex;flex-direction:column;gap:8px;font-size:12px;color:var(--muted);line-height:1.55;">
+              <div>📍 <strong>Place a POI:</strong> Click anywhere on the map inside the study area — or press <strong>Add POI</strong> first.</div>
+              <div>🖱️ <strong>Drag to reposition:</strong> Drag any marker to move it to the correct location.</div>
+              <div>🔍 <strong>Browse POIs:</strong> Click a marker or a card in the left panel to see its details here.</div>
+              <div>✏️ <strong>Annotate images:</strong> Hover over an uploaded image and click the <em>Annotate</em> button.</div>
+              <div>📂 <strong>Scenarios:</strong> Create alternative map versions using <em>Add scenario</em> — the base Status Quo is always preserved.</div>
+              <div>📤 <strong>Export:</strong> Download a data table (CSV), media files (ZIP), or a printable report (PDF).</div>
+            </div>
           `;
           return;
         }
@@ -1575,6 +1732,12 @@
           poi.summary = value;
           saveState();
           renderList();
+        })));
+
+        // Author field — records who placed this POI (useful for collaborative sessions)
+        wrap.appendChild(makeField("Added by (optional)", textInput(poi.author || "", value => {
+          poi.author = value;
+          saveState();
         })));
 
         const metaGrid = document.createElement("div");
@@ -1969,7 +2132,25 @@
             img.className = "imageThumb";
             img.src = image.dataUrl;
             img.alt = image.title || options.sectionLabel;
-            card.appendChild(img);
+
+            // Wrap image in a relative container so the overlay annotate button
+            // can be positioned directly on the thumbnail (more discoverable)
+            const imgWrap = document.createElement("div");
+            imgWrap.className = "imageCardWrap";
+            imgWrap.appendChild(img);
+
+            if (options.annotatable) {
+              const overlayAnnotateBtn = document.createElement("button");
+              overlayAnnotateBtn.type = "button";
+              overlayAnnotateBtn.className = "annotateOverlayBtn";
+              overlayAnnotateBtn.textContent = "✏ Annotate";
+              overlayAnnotateBtn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                openAnnotator(poi.id, image.id, options.collectionKey);
+              });
+              imgWrap.appendChild(overlayAnnotateBtn);
+            }
+            card.appendChild(imgWrap);
 
             const meta = document.createElement("div");
             meta.className = "metaGrid";
@@ -2231,6 +2412,12 @@
 
         // Refresh the dashboard summary counts every time the UI updates.
         updateStats();
+
+        // Update filter active badge
+        updateFilterBadge();
+
+        // Highlight detail panel when a POI is selected
+        if (els.detailPanel) els.detailPanel.classList.toggle("has-selection", !!selectedId);
       }
 
       // Render a small dashboard summarising the number of POIs per urgency level.
@@ -2275,6 +2462,7 @@
         const rows = [
           [
             "title",
+            "author",
             "category",
             "priority",
             "urgency_score",
@@ -2293,6 +2481,7 @@
         state.pois.forEach(poi => {
           rows.push([
             poi.title,
+            poi.author || "",
             getCategory(poi.categoryId).label,
             getPriority(poi.priority).label,
             String(getUrgencyScore(poi.priority)),
@@ -2330,6 +2519,58 @@
         return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || uid();
       }
 
+      function exportAsPdf() {
+        // Generate a simple HTML report and open it in a new tab for printing/saving as PDF.
+        const pois = state.pois;
+        const viewLabel = escapeHtml(getActiveViewLabel());
+        const date = new Date().toLocaleDateString();
+
+        let rows = pois.map(poi => {
+          const cat = getCategory(poi.categoryId);
+          const pri = getPriority(poi.priority);
+          const author = poi.author ? `<br><small style="color:#64748b">Added by: ${escapeHtml(poi.author)}</small>` : "";
+          return `
+            <tr>
+              <td><strong>${escapeHtml(poi.title)}</strong>${author}</td>
+              <td>${escapeHtml(cat.icon)} ${escapeHtml(cat.label)}</td>
+              <td><span style="color:${pri.color};font-weight:700">${escapeHtml(pri.label)}</span></td>
+              <td>${escapeHtml(poi.tags.join(", ") || "—")}</td>
+              <td>${escapeHtml(poi.summary || "—")}</td>
+              <td>${poi.comments.length}</td>
+              <td>${poi.lat.toFixed(5)}, ${poi.lon.toFixed(5)}</td>
+            </tr>`;
+        }).join("");
+
+        const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+          <title>POI Report – ${viewLabel}</title>
+          <style>
+            body { font-family: Arial, sans-serif; font-size: 12px; margin: 24px; color: #1e293b; }
+            h1 { font-size: 18px; margin-bottom: 4px; }
+            p { color: #64748b; margin-bottom: 16px; font-size: 11px; }
+            table { width: 100%; border-collapse: collapse; }
+            th { background: #1e3a5f; color: #fff; padding: 7px 10px; text-align: left; font-size: 11px; }
+            td { padding: 7px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: top; font-size: 11px; }
+            tr:nth-child(even) td { background: #f8fafc; }
+          </style>
+        </head><body>
+          <h1>POI Report – ${viewLabel}</h1>
+          <p>Generated: ${date} · ${pois.length} point(s) of interest</p>
+          <table>
+            <thead><tr>
+              <th>Title</th><th>Category</th><th>Priority</th><th>Tags</th><th>Description</th><th>Comments</th><th>Coordinates</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </body></html>`;
+
+        const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const win = window.open(url, "_blank");
+        if (win) {
+          win.onload = () => { win.print(); URL.revokeObjectURL(url); };
+        }
+      }
+
       function formatDate(iso) {
         const date = new Date(iso);
         return date.toLocaleString();
@@ -2344,14 +2585,28 @@
       }
 
       map.on("click", (event) => {
-        if (!addMode) return;
-        createPoi(event.latlng);
+        if (addMode) {
+          createPoi(event.latlng);
+        } else {
+          // Map-first flow: allow clicking the map directly to add a POI
+          // without requiring the user to press the Add POI button first
+          if (isInsideStudyArea(event.latlng)) {
+            toggleAddMode(true);
+            createPoi(event.latlng);
+          }
+        }
+      });
+
+      // Escape key cancels add mode
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && addMode) toggleAddMode(false);
       });
 
       els.addPoiBtn.addEventListener("click", () => toggleAddMode());
       els.resetViewBtn.addEventListener("click", () => map.fitBounds(studyAreaBounds, { padding: [14, 14] }));
       els.exportCsvBtn.addEventListener("click", exportCsv);
       els.exportMoodboardBtn.addEventListener("click", exportInspirationZip);
+      if (els.exportPdfBtn) els.exportPdfBtn.addEventListener("click", exportAsPdf);
       els.zoomBtn.addEventListener("click", zoomToSelected);
       // When the Street View button is clicked, open Street View for the selected POI
       if (els.streetViewBtn) {
